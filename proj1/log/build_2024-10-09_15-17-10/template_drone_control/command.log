@@ -1,6 +1,0 @@
-Invoking command in '/home/lrs-ubuntu/proj1/build/template_drone_control': CMAKE_PREFIX_PATH=/opt/ros/foxy /usr/bin/cmake /home/lrs-ubuntu/proj1/src/template_drone_control -DCMAKE_INSTALL_PREFIX=/home/lrs-ubuntu/proj1/install/template_drone_control
-Invoked command in '/home/lrs-ubuntu/proj1/build/template_drone_control' returned '0': CMAKE_PREFIX_PATH=/opt/ros/foxy /usr/bin/cmake /home/lrs-ubuntu/proj1/src/template_drone_control -DCMAKE_INSTALL_PREFIX=/home/lrs-ubuntu/proj1/install/template_drone_control
-Invoking command in '/home/lrs-ubuntu/proj1/build/template_drone_control': CMAKE_PREFIX_PATH=/opt/ros/foxy /usr/bin/cmake --build /home/lrs-ubuntu/proj1/build/template_drone_control -- -j8 -l8
-Invoked command in '/home/lrs-ubuntu/proj1/build/template_drone_control' returned '0': CMAKE_PREFIX_PATH=/opt/ros/foxy /usr/bin/cmake --build /home/lrs-ubuntu/proj1/build/template_drone_control -- -j8 -l8
-Invoking command in '/home/lrs-ubuntu/proj1/build/template_drone_control': CMAKE_PREFIX_PATH=/opt/ros/foxy /usr/bin/cmake --install /home/lrs-ubuntu/proj1/build/template_drone_control
-Invoked command in '/home/lrs-ubuntu/proj1/build/template_drone_control' returned '0': CMAKE_PREFIX_PATH=/opt/ros/foxy /usr/bin/cmake --install /home/lrs-ubuntu/proj1/build/template_drone_control
