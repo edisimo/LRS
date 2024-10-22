@@ -16,8 +16,9 @@ public:
     DroneControl();
 
 private:
-    void local_pos_cb(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
-    void state_cb(const mavros_msgs::msg::State::SharedPtr msg);
+    void LocalPosCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
+    void StateCallback(const mavros_msgs::msg::State::SharedPtr msg);
+    void ChangeMode(std::string mode);
 
     rclcpp::Subscription<mavros_msgs::msg::State>::SharedPtr state_sub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr local_pos_pub_;
