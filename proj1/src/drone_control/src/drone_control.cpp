@@ -27,12 +27,14 @@ DroneControl::DroneControl() : Node("drone_control_node")
 
     ChangeMode("GUIDED");
     ArmDrone(true);
-    TakeOff(0, 90, 2);
+    TakeOff(0, 0, 2);
     // Land(0, 90, 2);
 
     // TODO: Implement position controller and mission commands here -- mavros setpoint, spravit kruh ci je vramci neho
 
-    // pathfinding bfs priklad 
+    // pathfinding bfs priklad     
+    std::this_thread::sleep_for(10s);
+    GoToPoint(0, 0, 2, 0);
 }
 
 void DroneControl::LocalPosCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
@@ -239,4 +241,18 @@ void DroneControl::Land(float min_pitch, float yaw, float altitude) {
     {
         RCLCPP_ERROR(this->get_logger(), "Service call failed");
     }
+}
+
+void DroneControl::GoToPoint(float x, float y, float z, float yaw) {
+    //TODO: Make sure that the drone is in the air actually
+    geometry_msgs::msg::PoseStamped pose;
+    pose.pose.position.x = x;
+    pose.pose.position.y = y;
+    pose.pose.position.z = z;
+    pose.pose.orientation = tf2::toMsg(tf2::Quaternion(tf2::Vector3(0, 0, 1), yaw));
+    local_pos_pub_->publish(pose);
+    rclcpp::spin_some(this->get_node_base_interface());
+    //print position and orientation
+    RCLCPP_INFO(this->get_logger(), "Going to point: %f, %f, %f, %f", x, y, z, yaw);    
+    
 }

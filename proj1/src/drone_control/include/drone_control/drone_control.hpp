@@ -7,6 +7,8 @@
 #include <mavros_msgs/srv/command_bool.hpp>
 #include <mavros_msgs/srv/set_mode.hpp>
 #include <mavros_msgs/srv/command_tol.hpp>
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h" 
+
 
 using namespace std::chrono_literals;
 
@@ -22,6 +24,7 @@ private:
     void ArmDrone(bool arm_flag);
     void TakeOff(float min_pitch, float yaw, float altitude);
     void Land(float min_pitch, float yaw, float altitude);
+    void GoToPoint(float x, float y, float z, float yaw);
 
     rclcpp::Subscription<mavros_msgs::msg::State>::SharedPtr state_sub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr local_pos_pub_;
@@ -35,4 +38,4 @@ private:
     mavros_msgs::msg::State current_state_;
 };
 
-#endif // DRONE_CONTROL_HPP
+#endif //DRONE_CONTROL_HPP
