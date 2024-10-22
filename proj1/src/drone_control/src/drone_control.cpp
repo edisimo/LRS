@@ -10,6 +10,7 @@ DroneControl::DroneControl() : Node("drone_control_node")
     arming_client_ = this->create_client<mavros_msgs::srv::CommandBool>("mavros/cmd/arming");
     set_mode_client_ = this->create_client<mavros_msgs::srv::SetMode>("mavros/set_mode");
     takeoff_client_ = this->create_client<mavros_msgs::srv::CommandTOL>("mavros/cmd/takeoff");
+    land_client_ = this->create_client<mavros_msgs::srv::CommandTOL>("mavros/cmd/land");
     rmw_qos_profile_t custom_qos = rmw_qos_profile_default;
     custom_qos.depth = 1;
     custom_qos.reliability = RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
@@ -25,19 +26,9 @@ DroneControl::DroneControl() : Node("drone_control_node")
     }
 
     ChangeMode("GUIDED");
-    
-    // TODO: Arm and Take Off 
-    RCLCPP_INFO(this->get_logger(), "Sending position command");
-    while (!arming_client_->wait_for_service(1s))
-    {
-        if (!rclcpp::ok())
-        {
-            RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the arming service. Exiting.");
-            return;
-        }
-        RCLCPP_INFO(this->get_logger(), "Waiting for arming service...");
-    }
-    
+    ArmDrone(true);
+    TakeOff(0, 90, 2);
+    // Land(0, 90, 2);
 
     // TODO: Implement position controller and mission commands here -- mavros setpoint, spravit kruh ci je vramci neho
 
@@ -68,9 +59,7 @@ void DroneControl::ChangeMode(std::string mode)
 {
      mavros_msgs::srv::SetMode::Request set_mode_request;
     set_mode_request.custom_mode = mode;
-    // Wait for GUIDED mode
     
-    // TODO: Test if drone state really changed to GUIDED 
     while (!set_mode_client_->wait_for_service(1s))
     {
         if (!rclcpp::ok())
@@ -109,5 +98,106 @@ void DroneControl::ChangeMode(std::string mode)
         else {
             RCLCPP_ERROR(this->get_logger(), "Service call failed. Retrying...");
         }
+    }
+}
+
+void DroneControl::ArmDrone(bool arm_flag)
+{
+    mavros_msgs::srv::CommandBool::Request arm_request;
+    arm_request.value = arm_flag;
+
+    RCLCPP_INFO(this->get_logger(), "Sending position command");
+    while (!arming_client_->wait_for_service(1s))
+    {
+        if (!rclcpp::ok())
+        {
+            RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the arming service. Exiting.");
+            return;
+        }
+        RCLCPP_INFO(this->get_logger(), "Waiting for arming service...");
+    }
+
+    auto result = arming_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandBool::Request>(arm_request));
+    if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result) ==
+        rclcpp::FutureReturnCode::SUCCESS)
+    {
+        if (result.get()->success)
+        {
+            RCLCPP_INFO(this->get_logger(), "Vehicle armed");
+        }
+        else
+        {
+            RCLCPP_ERROR(this->get_logger(), "Failed to arm vehicle");
+        }
+    }
+    else
+    {
+        RCLCPP_ERROR(this->get_logger(), "Service call failed");
+    }
+}
+
+void DroneControl::TakeOff(float min_pitch, float yaw, float altitude) {
+    mavros_msgs::srv::CommandTOL::Request takeoff_request;
+    takeoff_request.min_pitch = min_pitch;
+    takeoff_request.yaw = yaw;
+    takeoff_request.altitude = altitude;
+    while (!takeoff_client_->wait_for_service(1s))
+    {
+        if (!rclcpp::ok())
+        {
+            RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the takeoff service. Exiting.");
+            return;
+        }
+        RCLCPP_INFO(this->get_logger(), "Waiting for takeoff service...");
+    }
+    auto result = takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(takeoff_request));
+    if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result) ==
+        rclcpp::FutureReturnCode::SUCCESS)
+    {
+        if (result.get()->success)
+        {
+            RCLCPP_INFO(this->get_logger(), "Takeoff sent");
+        }
+        else
+        {
+            RCLCPP_ERROR(this->get_logger(), "Failed to send takeoff");
+        }
+    }
+    else
+    {
+        RCLCPP_ERROR(this->get_logger(), "Service call failed");
+    }
+}
+
+void DroneControl::Land(float min_pitch, float yaw, float altitude) {
+    mavros_msgs::srv::CommandTOL::Request land_request;
+    land_request.min_pitch = min_pitch;
+    land_request.yaw = yaw;
+    land_request.altitude = altitude;
+    while (!land_client_->wait_for_service(1s))
+    {
+        if (!rclcpp::ok())
+        {
+            RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the land service. Exiting.");
+            return;
+        }
+        RCLCPP_INFO(this->get_logger(), "Waiting for land service...");
+    }
+    auto result = land_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(land_request));
+    if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result) ==
+        rclcpp::FutureReturnCode::SUCCESS)
+    {
+        if (result.get()->success)
+        {
+            RCLCPP_INFO(this->get_logger(), "Land sent");
+        }
+        else
+        {
+            RCLCPP_ERROR(this->get_logger(), "Failed to send land");
+        }
+    }
+    else
+    {
+        RCLCPP_ERROR(this->get_logger(), "Service call failed");
     }
 }
