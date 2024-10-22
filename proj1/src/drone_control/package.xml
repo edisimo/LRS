@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>template_drone_control</name>
+  <name>drone_control</name>
   <version>0.0.1</version>
   <description>Offboard control node package</description>
   <maintainer email="your_email@example.com">Your Name</maintainer>
