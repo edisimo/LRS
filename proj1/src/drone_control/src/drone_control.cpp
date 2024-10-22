@@ -45,19 +45,19 @@ void DroneControl::LocalPosCallback(const geometry_msgs::msg::PoseStamped::Share
     // current_local_pos_.pose.position.z
     // you can do the same for orientation, but you will not need it for this seminar
 
-    RCLCPP_INFO(this->get_logger(), "Current Local Position: %f, %f, %f", current_local_pos_.pose.position.x, current_local_pos_.pose.position.y, current_local_pos_.pose.position.z);
+    // RCLCPP_INFO(this->get_logger(), "Current Local Position: %f, %f, %f", current_local_pos_.pose.position.x, current_local_pos_.pose.position.y, current_local_pos_.pose.position.z);
 }
 
 void DroneControl::StateCallback(const mavros_msgs::msg::State::SharedPtr msg)
 {
     current_state_ = *msg;
-    RCLCPP_INFO(this->get_logger(), "Current State: %s", current_state_.mode.c_str());
+    // RCLCPP_INFO(this->get_logger(), "Current State: %s", current_state_.mode.c_str());
 }
 
 
 void DroneControl::ChangeMode(std::string mode)
 {
-     mavros_msgs::srv::SetMode::Request set_mode_request;
+    mavros_msgs::srv::SetMode::Request set_mode_request;
     set_mode_request.custom_mode = mode;
     
     while (!set_mode_client_->wait_for_service(1s))
@@ -76,8 +76,8 @@ void DroneControl::ChangeMode(std::string mode)
         rclcpp::FutureReturnCode::SUCCESS) {
             if (result.get()->mode_sent){
                 RCLCPP_INFO(this->get_logger(), mode + " mode sent, verifying");
-                for (int retries = 0; retries < 3; ++retries){
-                    std::this_thread::sleep_for(100ms);
+                for (int retries = 0; retries < 5; ++retries){
+                    std::this_thread::sleep_for(500ms);
                     rclcpp::spin_some(this->get_node_base_interface());
 
                     if (current_state_.mode == set_mode_request.custom_mode)
@@ -103,10 +103,17 @@ void DroneControl::ChangeMode(std::string mode)
 
 void DroneControl::ArmDrone(bool arm_flag)
 {
+    //TODO: Maybe actually switch the mode to guided
+    if (current_state_.mode != "GUIDED")
+    {
+        RCLCPP_ERROR(this->get_logger(), "Vehicle not in GUIDED mode. Cannot arm.");
+        return;
+    }
+
     mavros_msgs::srv::CommandBool::Request arm_request;
     arm_request.value = arm_flag;
 
-    RCLCPP_INFO(this->get_logger(), "Sending position command");
+    RCLCPP_INFO(this->get_logger(), "Sending arming command");
     while (!arming_client_->wait_for_service(1s))
     {
         if (!rclcpp::ok())
@@ -117,26 +124,56 @@ void DroneControl::ArmDrone(bool arm_flag)
         RCLCPP_INFO(this->get_logger(), "Waiting for arming service...");
     }
 
-    auto result = arming_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandBool::Request>(arm_request));
-    if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result) ==
-        rclcpp::FutureReturnCode::SUCCESS)
+    bool armed_status = false;
+    for (int retries = 0; retries < 5 && rclcpp::ok(); ++retries)
     {
-        if (result.get()->success)
+        auto result = arming_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandBool::Request>(arm_request));
+        if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result) ==
+            rclcpp::FutureReturnCode::SUCCESS)
         {
-            RCLCPP_INFO(this->get_logger(), "Vehicle armed");
+            if (result.get()->success)
+            {
+                RCLCPP_INFO(this->get_logger(), "Arming command sent, verifying");
+                std::this_thread::sleep_for(1000ms);
+                rclcpp::spin_some(this->get_node_base_interface());
+
+                if (current_state_.armed == arm_flag)
+                {
+                    armed_status = true;
+                    RCLCPP_INFO(this->get_logger(), "Vehicle armed successfully.");
+                    break;
+                }
+                else
+                {
+                    RCLCPP_WARN(this->get_logger(), "Vehicle not armed after command. Retrying...");
+                }
+            }
+            else
+            {
+                RCLCPP_ERROR(this->get_logger(), "Failed to arm vehicle. Retrying...");
+            }
         }
         else
         {
-            RCLCPP_ERROR(this->get_logger(), "Failed to arm vehicle");
+            RCLCPP_ERROR(this->get_logger(), "Service call failed. Retrying...");
         }
     }
-    else
+
+    if (!armed_status)
     {
-        RCLCPP_ERROR(this->get_logger(), "Service call failed");
+        RCLCPP_ERROR(this->get_logger(), "Failed to arm vehicle after multiple attempts.");
     }
 }
 
 void DroneControl::TakeOff(float min_pitch, float yaw, float altitude) {
+
+    //TODO: Maybe arm the drone if it is not armed 
+    if (current_state_.armed == false)
+    {
+        RCLCPP_ERROR(this->get_logger(), "Vehicle not armed. Cannot take off.");
+        return;
+    }
+    //TODO: Verify that the drone has taken off
     mavros_msgs::srv::CommandTOL::Request takeoff_request;
     takeoff_request.min_pitch = min_pitch;
     takeoff_request.yaw = yaw;
@@ -170,6 +207,8 @@ void DroneControl::TakeOff(float min_pitch, float yaw, float altitude) {
 }
 
 void DroneControl::Land(float min_pitch, float yaw, float altitude) {
+    //TODO: Check if the drone is in the air before landing
+    //TODO: Verify that the drone has landed
     mavros_msgs::srv::CommandTOL::Request land_request;
     land_request.min_pitch = min_pitch;
     land_request.yaw = yaw;
