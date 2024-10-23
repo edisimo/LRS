@@ -27,19 +27,18 @@ DroneControl::DroneControl() : Node("drone_control_node")
 
     ChangeMode("GUIDED");
     ArmDrone(true);
-    TakeOff(0, 0, 2);
-    // Land(0, 90, 2);
+    TakeOff(0, 0, 2, SOFT_THRESHOLD_);
 
     // TODO: Implement position controller and mission commands here -- mavros setpoint, spravit kruh ci je vramci neho
 
     // pathfinding bfs priklad     
-    std::this_thread::sleep_for(10s);
-    GoToPoint(0, 0, 2, 0);
+    GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
+    Land(0, 0, 2);
 }
 
 void DroneControl::LocalPosCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {
-    geometry_msgs::msg::PoseStamped current_local_pos_ = *msg;
+    current_local_pos_ = *msg;
 
     // To obtain the position of the drone use this data fields withing the message, please note, that this is the local position of the drone in the NED frame so it is different to the map frame
     // current_local_pos_.pose.position.x
@@ -105,11 +104,10 @@ void DroneControl::ChangeMode(std::string mode)
 
 void DroneControl::ArmDrone(bool arm_flag)
 {
-    //TODO: Maybe actually switch the mode to guided
     if (current_state_.mode != "GUIDED")
     {
         RCLCPP_ERROR(this->get_logger(), "Vehicle not in GUIDED mode. Cannot arm.");
-        return;
+        ChangeMode("GUIDED");
     }
 
     mavros_msgs::srv::CommandBool::Request arm_request;
@@ -167,15 +165,13 @@ void DroneControl::ArmDrone(bool arm_flag)
     }
 }
 
-void DroneControl::TakeOff(float min_pitch, float yaw, float altitude) {
+void DroneControl::TakeOff(float min_pitch, float yaw, float altitude, float threshold) {
 
-    //TODO: Maybe arm the drone if it is not armed 
     if (current_state_.armed == false)
     {
         RCLCPP_ERROR(this->get_logger(), "Vehicle not armed. Cannot take off.");
-        return;
+        ArmDrone(true);
     }
-    //TODO: Verify that the drone has taken off
     mavros_msgs::srv::CommandTOL::Request takeoff_request;
     takeoff_request.min_pitch = min_pitch;
     takeoff_request.yaw = yaw;
@@ -200,11 +196,30 @@ void DroneControl::TakeOff(float min_pitch, float yaw, float altitude) {
         else
         {
             RCLCPP_ERROR(this->get_logger(), "Failed to send takeoff");
+            return;
         }
     }
     else
     {
         RCLCPP_ERROR(this->get_logger(), "Service call failed");
+        return;
+    }
+    auto start = std::chrono::steady_clock::now();
+    while(rclcpp::ok()) {
+        rclcpp::spin_some(this->get_node_base_interface());
+        float dz = altitude - current_local_pos_.pose.position.z;
+        float distance = std::sqrt(dz*dz);
+        if(distance <= threshold) {
+            RCLCPP_INFO(this->get_logger(), "Takeoff position achieved");
+            break;
+        }
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        if (elapsed >= TAKEOFF_TIME_LIMIT_) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to achieve takeoff position within time limit - %ds", TAKEOFF_TIME_LIMIT_);
+            break;
+        }
     }
 }
 
@@ -243,16 +258,38 @@ void DroneControl::Land(float min_pitch, float yaw, float altitude) {
     }
 }
 
-void DroneControl::GoToPoint(float x, float y, float z, float yaw) {
+void DroneControl::GoToPoint(float x, float y, float z, float yaw, float threshold) {
     //TODO: Make sure that the drone is in the air actually
     geometry_msgs::msg::PoseStamped pose;
     pose.pose.position.x = x;
     pose.pose.position.y = y;
     pose.pose.position.z = z;
-    pose.pose.orientation = tf2::toMsg(tf2::Quaternion(tf2::Vector3(0, 0, 1), yaw));
-    local_pos_pub_->publish(pose);
-    rclcpp::spin_some(this->get_node_base_interface());
-    //print position and orientation
-    RCLCPP_INFO(this->get_logger(), "Going to point: %f, %f, %f, %f", x, y, z, yaw);    
+    pose.pose.orientation = tf2::toMsg(tf2::Quaternion(tf2::Vector3(0, 0, 1), yaw*M_PI/180.0));
+    RCLCPP_INFO(this->get_logger(), "Going to point: %f, %f, %f, %f", x, y, z, yaw); 
+
+    auto timer = this->create_wall_timer(
+        std::chrono::milliseconds(100),
+        [this, pose]() { 
+            PublishPoseCallback(pose);
+        }
+    );
     
+    bool is_within_threshold = false;
+    while(rclcpp::ok() && !is_within_threshold) {
+        rclcpp::spin_some(this->get_node_base_interface());
+        float dx = x - current_local_pos_.pose.position.x;
+        float dy = y - current_local_pos_.pose.position.y;
+        float dz = z - current_local_pos_.pose.position.z;
+        float distance = std::sqrt(dx*dx + dy*dy + dz*dz);
+        RCLCPP_INFO(this->get_logger(), "Distance: %f", distance);
+        is_within_threshold = distance <= threshold;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    RCLCPP_INFO(this->get_logger(), "Drone at position");
+    timer.reset();    
+}
+
+void DroneControl::PublishPoseCallback(const geometry_msgs::msg::PoseStamped pose) {
+    local_pos_pub_->publish(pose);
 }
