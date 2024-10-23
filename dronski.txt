@@ -10,7 +10,7 @@ Node1 - DroneControl Literally iba drone control
 
 Node2 - Map loading + PathFinding - bude cakat na rozparsovany input z Node3 - Pozrie si ake vysky potrebuje, nacita si podla toho mapy, inflacia na zaklade rozmerov dronski. PathFinding algoritmh 3D - Flood/A*/RRT*, Select iba bodiky cez ktore sa bude lietat, Pathfinding sa robi vzdy medzi 2 nasledujucimi bodmi, potom sa posle do DroneControl, spolu s commandom, ked DroneControl dokonci bodik tak posle spravu (asi service) do prvej Node.
 
-Node3 - parser csv
+Node3 - parser csv --- ASI NAKONIEC Node2
 
 
 
