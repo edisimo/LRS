@@ -21,19 +21,26 @@ include_directories(include)
 
 # Declare a C++ library
 add_library(drone_control_lib src/drone_control.cpp)
+add_library(path_finding_lib src/path_finding.cpp)
+
 
 # Declare a C++ executable
 add_executable(drone_control_node nodes/drone_control_node.cpp)
+add_executable(path_finding_node nodes/path_finding_node.cpp)
+
 
 # Specify libraries to link a library or executable target against
 ament_target_dependencies(drone_control_lib rclcpp geometry_msgs mavros_msgs)
 ament_target_dependencies(drone_control_node rclcpp geometry_msgs mavros_msgs)
+ament_target_dependencies(path_finding_lib rclcpp)
+ament_target_dependencies(path_finding_node rclcpp)
 
 # Link the library to the executable
 target_link_libraries(drone_control_node drone_control_lib)
+target_link_libraries(path_finding_node path_finding_lib)
 
 # Install the library and executable
-install(TARGETS drone_control_lib drone_control_node
+install(TARGETS drone_control_lib drone_control_node path_finding_lib path_finding_node
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME})
