@@ -13,4 +13,6 @@ Node2 - Map loading + PathFinding - bude cakat na rozparsovany input z Node3 - P
 Node3 - parser csv --- ASI NAKONIEC Node2
 
 
+Treba publishovat stale position cca 10Hz
+
 
