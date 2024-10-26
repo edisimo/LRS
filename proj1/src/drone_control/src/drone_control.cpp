@@ -293,3 +293,5 @@ void DroneControl::GoToPoint(float x, float y, float z, float yaw, float thresho
 void DroneControl::PublishPoseCallback(const geometry_msgs::msg::PoseStamped pose) {
     local_pos_pub_->publish(pose);
 }
+
+//TODO: FIND OUT WHAT THE HELL IS GOING ON WITH THE ORIENTATION xD 
