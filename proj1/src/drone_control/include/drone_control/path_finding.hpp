@@ -6,11 +6,42 @@
 #include <sstream>
 #include <vector>
 #include <string>
+#include <unordered_map>
+
+using Key = std::tuple<int, int, int>;
+
+struct KeyHash {
+    std::size_t operator()(const Key& k) const {
+        return std::hash<int>()(std::get<0>(k)) ^
+               (std::hash<int>()(std::get<1>(k)) << 1) ^
+               (std::hash<int>()(std::get<2>(k)) >> 1);
+    }
+};
+
+struct KeyEqual {
+    bool operator()(const Key& lhs, const Key& rhs) const {
+        return std::get<0>(lhs) == std::get<0>(rhs) &&
+               std::get<1>(lhs) == std::get<1>(rhs) &&
+               std::get<2>(lhs) == std::get<2>(rhs);
+    }
+};
+
+
 
 class MapLoading
 {
 public:
     MapLoading();
+    bool LoadMap(const std::string &map_name);
+    void PrintMap();
+    void InflateMap(double inflation_radius_cm);
+private: 
+    const float resolution_ = 0.05;
+    int width_;
+    int height_;
+    std::vector<std::vector<int>> map_data_;
+    void InflateCell(std::vector<std::vector<int>> &inflated_map, int x, int y, int inflationRadiusPx);
+
 };
 
 struct Point {
