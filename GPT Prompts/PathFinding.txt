@@ -1,0 +1,452 @@
+this is my assignment
+
+Project specification
+
+    Map handling.
+        implementation or tool - map loading - required
+        implementation of obstacle inflation - required
+        implementation of map transformations, rotations etc. - if needed
+    Map search algorithm. (Path finding)
+        implementation or tool - path finding/search algorithm - required
+            Flood fill, RRT, A*...
+    Trajectory planning.
+        implementation or tool - optimization of path - if needed
+            minimal requirement - elimination of not necessary points (elimination of sequences of horizontal, vertical, diagonal paths...)
+    ROS Drone control node
+        implementation - trajectory loading - required
+        implementation - mission tasks/commands - required
+        implementation - position controller - required
+    Point specification/task/command
+        implementation - land and takeoff - required
+        implementation - point radius (precision of position controller for given point - Hard/Soft) - required
+        implementation - yaw control in a specific angle - required
+    Documentation
+        analysis of each used approach - required
+            pros and cons
+            explanation of the algorithms or implementations
+        overal solution diagram - required
+            data processing paths
+            ROS Drone control diagram
+
+Note: Map search algorithm and some parts of Trajectory planning can be implemented in one method, if you choose so. Note: If a software tool is used, it must be well documented and explained in documentation.
+
+we are programming in ros2 in c++ or python, create an example for pathfinding, trajectory planning (in 3d of course) maybe try a* algorithm if possible  
+ChatGPT said:
+ChatGPT
+
+That sounds like an exciting project! Here's a breakdown of how you could implement pathfinding and trajectory planning using the A* algorithm in ROS2, along with examples in both Python and C++.
+1. Pathfinding using A* Algorithm
+Python Example
+
+You can use the networkx library for graph representation and pathfinding. If you're dealing with 3D maps, you might need to adapt this for a 3D grid.
+
+python
+
+import numpy as np
+import networkx as nx
+import matplotlib.pyplot as plt
+
+class AStar:
+    def __init__(self, grid):
+        self.grid = grid
+        self.graph = self.create_graph()
+
+    def create_graph(self):
+        G = nx.Graph()
+        for y in range(self.grid.shape[0]):
+            for x in range(self.grid.shape[1]):
+                if self.grid[y, x] == 0:  # If not an obstacle
+                    G.add_node((x, y))
+                    # Add edges to neighbors
+                    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                        if 0 <= x + dx < self.grid.shape[1] and 0 <= y + dy < self.grid.shape[0] and self.grid[y + dy, x + dx] == 0:
+                            G.add_edge((x, y), (x + dx, y + dy), weight=1)
+        return G
+
+    def heuristic(self, a, b):
+        return np.linalg.norm(np.array(a) - np.array(b))
+
+    def a_star(self, start, goal):
+        return nx.astar_path(self.graph, start, goal, heuristic=self.heuristic)
+
+# Example usage
+grid = np.array([[0, 0, 1, 0],
+                 [0, 0, 1, 0],
+                 [0, 0, 0, 0],
+                 [1, 1, 0, 0]])
+
+astar = AStar(grid)
+path = astar.a_star((0, 0), (3, 3))
+print("Path:", path)
+
+C++ Example
+
+For a C++ implementation, you can use a similar approach with standard library data structures. Here’s a simplified version of the A* algorithm:
+
+cpp
+
+#include <iostream>
+#include <vector>
+#include <queue>
+#include <unordered_map>
+#include <cmath>
+
+struct Node {
+    int x, y;
+    float cost;
+
+    bool operator>(const Node& other) const {
+        return cost > other.cost;
+    }
+};
+
+class AStar {
+public:
+    AStar(const std::vector<std::vector<int>>& grid) : grid(grid) {}
+
+    std::vector<std::pair<int, int>> a_star(std::pair<int, int> start, std::pair<int, int> goal) {
+        std::priority_queue<Node, std::vector<Node>, std::greater<Node>> openSet;
+        std::unordered_map<int, std::pair<int, int>> cameFrom;
+        std::unordered_map<int, float> gScore;
+
+        openSet.push({start.first, start.second, 0});
+        gScore[start.first * grid[0].size() + start.second] = 0;
+
+        while (!openSet.empty()) {
+            Node current = openSet.top();
+            openSet.pop();
+
+            if (current.x == goal.first && current.y == goal.second) {
+                return reconstruct_path(cameFrom, current.x, current.y);
+            }
+
+            for (const auto& [dx, dy] : std::vector<std::pair<int, int>>{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}) {
+                int neighborX = current.x + dx;
+                int neighborY = current.y + dy;
+
+                if (is_valid(neighborX, neighborY)) {
+                    float tentative_gScore = gScore[current.x * grid[0].size() + current.y] + 1;
+
+                    if (gScore.find(neighborX * grid[0].size() + neighborY) == gScore.end() || tentative_gScore < gScore[neighborX * grid[0].size() + neighborY]) {
+                        cameFrom[neighborX * grid[0].size() + neighborY] = {current.x, current.y};
+                        gScore[neighborX * grid[0].size() + neighborY] = tentative_gScore;
+                        float fScore = tentative_gScore + heuristic({neighborX, neighborY}, goal);
+                        openSet.push({neighborX, neighborY, fScore});
+                    }
+                }
+            }
+        }
+
+        return {};  // Return empty path if no path is found
+    }
+
+private:
+    const std::vector<std::vector<int>>& grid;
+
+    bool is_valid(int x, int y) {
+        return x >= 0 && x < grid.size() && y >= 0 && y < grid[0].size() && grid[x][y] == 0;
+    }
+
+    float heuristic(std::pair<int, int> a, std::pair<int, int> b) {
+        return std::abs(a.first - b.first) + std::abs(a.second - b.second);
+    }
+
+    std::vector<std::pair<int, int>> reconstruct_path(const std::unordered_map<int, std::pair<int, int>>& cameFrom, int currentX, int currentY) {
+        std::vector<std::pair<int, int>> total_path = {{currentX, currentY}};
+        while (cameFrom.find(currentX * grid[0].size() + currentY) != cameFrom.end()) {
+            auto [x, y] = cameFrom.at(currentX * grid[0].size() + currentY);
+            total_path.push_back({x, y});
+            currentX = x;
+            currentY = y;
+        }
+        std::reverse(total_path.begin(), total_path.end());
+        return total_path;
+    }
+};
+
+int main() {
+    std::vector<std::vector<int>> grid = {
+        {0, 0, 1, 0},
+        {0, 0, 1, 0},
+        {0, 0, 0, 0},
+        {1, 1, 0, 0}
+    };
+
+    AStar astar(grid);
+    auto path = astar.a_star({0, 0}, {3, 3});
+    for (const auto& [x, y] : path) {
+        std::cout << "(" << x << ", " << y << ") ";
+    }
+    return 0;
+}
+
+2. Trajectory Planning
+
+For trajectory planning, you can create a function to optimize the path. This could involve removing unnecessary points in a trajectory.
+Python Example
+
+python
+
+def simplify_path(path):
+    simplified = [path[0]]
+    for i in range(1, len(path) - 1):
+        if not (path[i-1][0] == path[i][0] == path[i+1][0] or path[i-1][1] == path[i][1] == path[i+1][1]):
+            simplified.append(path[i])
+    simplified.append(path[-1])
+    return simplified
+
+# Example usage
+path = [(0, 0), (0, 1), (0, 2), (1, 2), (2, 2), (2, 1), (2, 0)]
+simplified_path = simplify_path(path)
+print("Simplified Path:", simplified_path)
+
+C++ Example
+
+cpp
+
+#include <vector>
+#include <utility>
+
+std::vector<std::pair<int, int>> simplify_path(const std::vector<std::pair<int, int>>& path) {
+    std::vector<std::pair<int, int>> simplified;
+    simplified.push_back(path[0]);
+    
+    for (size_t i = 1; i < path.size() - 1; ++i) {
+        if (!(path[i - 1].first == path[i].first && path[i].first == path[i + 1].first) &&
+            !(path[i - 1].second == path[i].second && path[i].second == path[i + 1].second)) {
+            simplified.push_back(path[i]);
+        }
+    }
+    simplified.push_back(path.back());
+    return simplified;
+}
+
+// Example usage
+int main() {
+    std::vector<std::pair<int, int>> path = {{0, 0}, {0, 1}, {0, 2}, {1, 2}, {2, 2}, {2, 1}, {2, 0}};
+    auto simplified_path = simplify_path(path);
+    for (const auto& point : simplified_path) {
+        std::cout << "(" << point.first << ", " << point.second << ") ";
+    }
+    return 0;
+}
+
+3. ROS2 Integration
+
+To integrate these implementations into your ROS2 project, create nodes that can handle map loading, pathfinding requests, and trajectory execution. You can set up services or actions to handle requests for pathfinding and trajectory planning, and use topics to communicate the results to the drone control node.
+
+    ROS2 Node Structure:
+        Map Loader Node: Loads the map and publishes it.
+        Pathfinding Node: Subscribes to map data and receives requests for paths.
+        Trajectory Planning Node: Processes paths and optimizes trajectories.
+        Drone Control Node: Manages drone movements based on planned trajectories.
+
+4. Documentation
+
+As part of your documentation, include:
+
+    Analysis of Algorithms: Explain the pros and cons of the A* algorithm and trajectory simplification techniques.
+    **
+
+You said:
+explain a* first explain how it works in detail then explain how this code a* works
+ChatGPT said:
+ChatGPT
+A* Algorithm: Overview
+
+The A* (A-star) algorithm is a popular pathfinding and graph traversal algorithm used in various applications, including navigation and AI in games. It efficiently finds the shortest path from a starting node to a goal node while avoiding obstacles. Here's a detailed explanation of how it works:
+Key Concepts
+
+    Nodes and Edges: The algorithm operates on a graph, consisting of nodes (points) and edges (connections between points). Each node represents a state or position, and edges represent possible movements between these states.
+
+    Costs:
+        g(n): The cost of the path from the start node to node nn. This is the actual distance traveled.
+        h(n): The heuristic estimated cost from node nn to the goal node. This is usually a straight-line distance (Euclidean distance) or Manhattan distance, depending on the grid structure.
+        f(n): The total cost function, defined as f(n)=g(n)+h(n)f(n)=g(n)+h(n). The algorithm aims to minimize this value to find the optimal path.
+
+    Open Set and Closed Set:
+        Open Set: A set of nodes that are yet to be evaluated. Initially, it contains only the start node.
+        Closed Set: A set of nodes that have already been evaluated. This prevents the algorithm from revisiting nodes.
+
+Algorithm Steps
+
+    Initialization: Start by placing the starting node in the open set and setting its cost values (gg, hh, and ff).
+
+    Main Loop:
+        While there are nodes in the open set:
+            Retrieve the node with the lowest f(n)f(n) value (let's call it the current node).
+            If the current node is the goal node, reconstruct the path and terminate.
+            Move the current node from the open set to the closed set.
+            For each neighbor of the current node:
+                If the neighbor is in the closed set, ignore it.
+                If not, calculate its costs (gg, hh, and ff).
+                If the neighbor is not in the open set, add it with its costs.
+                If it is already in the open set, check if the newly calculated gg cost is lower than the previously recorded one. If so, update its cost and parent node.
+
+    Path Reconstruction: If the goal node is reached, backtrack through the parent nodes to reconstruct the path from start to goal.
+
+A* Implementation Explained
+
+Let's break down the provided code examples (Python and C++) for A* pathfinding.
+Python Example Breakdown
+
+    Imports and Class Initialization:
+        Import necessary libraries (numpy, networkx, matplotlib).
+        Create the AStar class, which initializes the grid and creates a graph representation.
+
+python
+
+class AStar:
+    def __init__(self, grid):
+        self.grid = grid
+        self.graph = self.create_graph()
+
+    Graph Creation:
+        The create_graph method constructs a graph where nodes represent free spaces in the grid (denoted by 0).
+        Each node is connected to its neighbors (up, down, left, right) if they are also free.
+
+python
+
+def create_graph(self):
+    G = nx.Graph()
+    for y in range(self.grid.shape[0]):
+        for x in range(self.grid.shape[1]):
+            if self.grid[y, x] == 0:  # If not an obstacle
+                G.add_node((x, y))
+                # Add edges to neighbors
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    if 0 <= x + dx < self.grid.shape[1] and 0 <= y + dy < self.grid.shape[0] and self.grid[y + dy, x + dx] == 0:
+                        G.add_edge((x, y), (x + dx, y + dy), weight=1)
+    return G
+
+    Heuristic Function:
+        The heuristic function computes the distance from a node to the goal using Euclidean distance, which helps estimate how close a node is to the goal.
+
+python
+
+def heuristic(self, a, b):
+    return np.linalg.norm(np.array(a) - np.array(b))
+
+    A Search Algorithm*:
+        The a_star method implements the A* algorithm logic. It initializes the open set and starts evaluating nodes.
+        It checks if the current node is the goal, processes neighbors, updates costs, and reconstructs the path when the goal is reached.
+
+python
+
+def a_star(self, start, goal):
+    return nx.astar_path(self.graph, start, goal, heuristic=self.heuristic)
+
+    Example Usage:
+        The grid is defined, and an instance of the AStar class is created. The a_star method is called with start and goal coordinates to find the path.
+
+python
+
+grid = np.array([[0, 0, 1, 0],
+                 [0, 0, 1, 0],
+                 [0, 0, 0, 0],
+                 [1, 1, 0, 0]])
+
+astar = AStar(grid)
+path = astar.a_star((0, 0), (3, 3))
+print("Path:", path)
+
+C++ Example Breakdown
+
+    Includes and Struct Definition:
+        Include necessary headers for standard libraries and define a Node struct to represent each node in the graph.
+
+cpp
+
+#include <iostream>
+#include <vector>
+#include <queue>
+#include <unordered_map>
+#include <cmath>
+
+struct Node {
+    int x, y;
+    float cost;
+
+    bool operator>(const Node& other) const {
+        return cost > other.cost;
+    }
+};
+
+    AStar Class Initialization:
+        The AStar class is initialized with the grid. The a_star method will handle the pathfinding.
+
+cpp
+
+class AStar {
+public:
+    AStar(const std::vector<std::vector<int>>& grid) : grid(grid) {}
+
+    A Search Logic*:
+        Similar to the Python implementation, the a_star method processes nodes using a priority queue.
+        It evaluates the current node, checks neighbors, updates costs, and reconstructs the path once the goal is reached.
+
+cpp
+
+std::vector<std::pair<int, int>> a_star(std::pair<int, int> start, std::pair<int, int> goal) {
+    std::priority_queue<Node, std::vector<Node>, std::greater<Node>> openSet;
+    std::unordered_map<int, std::pair<int, int>> cameFrom;
+    std::unordered_map<int, float> gScore;
+
+    openSet.push({start.first, start.second, 0});
+    gScore[start.first * grid[0].size() + start.second] = 0;
+
+    while (!openSet.empty()) {
+        Node current = openSet.top();
+        openSet.pop();
+
+        if (current.x == goal.first && current.y == goal.second) {
+            return reconstruct_path(cameFrom, current.x, current.y);
+        }
+
+        for (const auto& [dx, dy] : std::vector<std::pair<int, int>>{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}) {
+            int neighborX = current.x + dx;
+            int neighborY = current.y + dy;
+
+            if (is_valid(neighborX, neighborY)) {
+                float tentative_gScore = gScore[current.x * grid[0].size() + current.y] + 1;
+
+                if (gScore.find(neighborX * grid[0].size() + neighborY) == gScore.end() || tentative_gScore < gScore[neighborX * grid[0].size() + neighborY]) {
+                    cameFrom[neighborX * grid[0].size() + neighborY] = {current.x, current.y};
+                    gScore[neighborX * grid[0].size() + neighborY] = tentative_gScore;
+                    float fScore = tentative_gScore + heuristic({neighborX, neighborY}, goal);
+                    openSet.push({neighborX, neighborY, fScore});
+                }
+            }
+        }
+    }
+
+    return {};  // Return empty path if no path is found
+}
+
+    Valid Node Check and Heuristic:
+        The is_valid method checks if a node is within grid boundaries and not an obstacle.
+        The heuristic function calculates the estimated cost to reach the goal.
+
+    Path Reconstruction:
+        After reaching the goal, the path is reconstructed by backtracking through the cameFrom map.
+
+cpp
+
+std::vector<std::pair<int, int>> reconstruct_path(const std::unordered_map<int, std::pair<int, int>>& cameFrom, int currentX, int currentY) {
+    std::vector<std::pair<int, int>> total_path = {{currentX, currentY}};
+    while (cameFrom.find(currentX * grid[0].size() + currentY) != cameFrom.end()) {
+        auto [x, y] = cameFrom.at(currentX * grid[0].size() + currentY);
+        total_path.push_back({x, y});
+        currentX = x;
+        currentY = y;
+    }
+    std::reverse(total_path.begin(), total_path.end());
+    return total_path;
+}
+
+Summary
+
+    A* is an efficient pathfinding algorithm that uses a heuristic to guide its search, balancing between the actual path cost and estimated future cost.
+    The provided code examples in Python and C++ demonstrate how to implement A* for grid-based pathfinding, managing nodes, costs, and reconstructing the optimal path.
+
+Feel free to ask if you have any specific questions or if you want more details about any part!
