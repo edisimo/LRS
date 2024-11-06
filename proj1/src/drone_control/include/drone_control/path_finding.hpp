@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <tuple>
 
 using Key = std::tuple<int, int, int>;
 
@@ -26,21 +27,22 @@ struct KeyEqual {
     }
 };
 
+using Map3D = std::unordered_map<Key, int, KeyHash, KeyEqual>;
 
 
 class MapLoading
 {
 public:
     MapLoading();
-    bool LoadMap(const std::string &map_name);
-    void PrintMap();
-    void InflateMap(double inflation_radius_cm);
+    bool LoadMap(const std::string &map_name, int z_level);
+    void PrintMap(int z_level);
+    void InflateMap(double inflation_radius_cm, int z_level);
 private: 
     const float resolution_ = 0.05;
     int width_;
     int height_;
-    std::vector<std::vector<int>> map_data_;
-    void InflateCell(std::vector<std::vector<int>> &inflated_map, int x, int y, int inflationRadiusPx);
+    Map3D map_data_;
+    void InflateCell(Map3D &inflated_map, int x, int y, int z, int inflationRadiusPx);
 
 };
 
