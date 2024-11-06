@@ -27,13 +27,13 @@ DroneControl::DroneControl() : Node("drone_control_node")
 
     ChangeMode("GUIDED");
     ArmDrone(true);
-    TakeOff(0, 0, 2, SOFT_THRESHOLD_);
+    TakeOff(0, 2);
 
     // TODO: Implement position controller and mission commands here -- mavros setpoint, spravit kruh ci je vramci neho
 
     // pathfinding bfs priklad     
     GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
-    Land(0, 0, 2);
+    Land();
 }
 
 void DroneControl::LocalPosCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
@@ -165,15 +165,20 @@ void DroneControl::ArmDrone(bool arm_flag)
     }
 }
 
-void DroneControl::TakeOff(float min_pitch, float yaw, float altitude, float threshold) {
+void DroneControl::TakeOff(float altitude, float threshold) {
+    //TODO: Optional parameter for yaw
 
     if (current_state_.armed == false)
     {
         RCLCPP_ERROR(this->get_logger(), "Vehicle not armed. Cannot take off.");
         ArmDrone(true);
     }
+
+    tf2::Quaternion q;
+    tf2::fromMsg(current_local_pos_.pose.orientation, q);
+    double roll, pitch, yaw;
+    tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
     mavros_msgs::srv::CommandTOL::Request takeoff_request;
-    takeoff_request.min_pitch = min_pitch;
     takeoff_request.yaw = yaw;
     takeoff_request.altitude = altitude;
     while (!takeoff_client_->wait_for_service(1s))
@@ -223,13 +228,15 @@ void DroneControl::TakeOff(float min_pitch, float yaw, float altitude, float thr
     }
 }
 
-void DroneControl::Land(float min_pitch, float yaw, float altitude) {
+void DroneControl::Land() {
     //TODO: Check if the drone is in the air before landing
     //TODO: Verify that the drone has landed
+    tf2::Quaternion quat;
+    tf2::fromMsg(current_local_pos_.pose.orientation, quat);
+    double roll, pitch, yaw;
+    tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
     mavros_msgs::srv::CommandTOL::Request land_request;
-    land_request.min_pitch = min_pitch;
     land_request.yaw = yaw;
-    land_request.altitude = altitude;
     while (!land_client_->wait_for_service(1s))
     {
         if (!rclcpp::ok())

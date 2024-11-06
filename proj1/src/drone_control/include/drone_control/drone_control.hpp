@@ -2,14 +2,19 @@
 #define DRONE_CONTROL_HPP
 
 #include <rclcpp/rclcpp.hpp>
-#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <mavros_msgs/msg/state.hpp>
 #include <mavros_msgs/srv/command_bool.hpp>
 #include <mavros_msgs/srv/set_mode.hpp>
 #include <mavros_msgs/srv/command_tol.hpp>
-#include "tf2_geometry_msgs/tf2_geometry_msgs.h" 
 #include <chrono>
 #include <thread>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <tf2/convert.h>
+#include <geometry_msgs/msg/pose.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
 
 using namespace std::chrono_literals;
 
@@ -24,8 +29,8 @@ private:
     void PublishPoseCallback(const geometry_msgs::msg::PoseStamped pose);
     void ChangeMode(std::string mode);
     void ArmDrone(bool arm_flag);
-    void TakeOff(float min_pitch, float yaw, float altitude, float threshold);
-    void Land(float min_pitch, float yaw, float altitude);
+    void TakeOff(float altitude, float threshold = SOFT_THRESHOLD_);
+    void Land();
     void GoToPoint(float x, float y, float z, float yaw, float threshold);
 
     static constexpr float SOFT_THRESHOLD_ = 0.1f;

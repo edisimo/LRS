@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 project(drone_control)
 
-# Default to C++14
+# Default to C++17
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 17)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -15,27 +15,33 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(mavros_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
-# Include directory for headers
-include_directories(include)
+# Include directories for tf2 and tf2_geometry_msgs
+include_directories(
+  ${tf2_INCLUDE_DIRS}
+  ${tf2_geometry_msgs_INCLUDE_DIRS}
+  include
+)
 
-# Declare a C++ library
+# Declare libraries
 add_library(drone_control_lib src/drone_control.cpp)
 add_library(path_finding_lib src/path_finding.cpp)
 
+# Link libraries to dependencies using ament_target_dependencies
+ament_target_dependencies(drone_control_lib rclcpp geometry_msgs mavros_msgs tf2 tf2_geometry_msgs)
+ament_target_dependencies(path_finding_lib rclcpp)
 
-# Declare a C++ executable
+# Declare executables
 add_executable(drone_control_node nodes/drone_control_node.cpp)
 add_executable(path_finding_node nodes/path_finding_node.cpp)
 
-
-# Specify libraries to link a library or executable target against
-ament_target_dependencies(drone_control_lib rclcpp geometry_msgs mavros_msgs)
-ament_target_dependencies(drone_control_node rclcpp geometry_msgs mavros_msgs)
-ament_target_dependencies(path_finding_lib rclcpp)
+# Link executables to libraries using ament_target_dependencies (automatically handles linking)
+ament_target_dependencies(drone_control_node rclcpp geometry_msgs mavros_msgs tf2 tf2_geometry_msgs)
 ament_target_dependencies(path_finding_node rclcpp)
 
-# Link the library to the executable
+# Link libraries to executables
 target_link_libraries(drone_control_node drone_control_lib)
 target_link_libraries(path_finding_node path_finding_lib)
 
