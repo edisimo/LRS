@@ -5,8 +5,18 @@ PathFinding::PathFinding() : Node("path_finding_node")
     RCLCPP_INFO(this->get_logger(), "HELLO WORLD");
     mission_.ParsePoints("/home/lrs-ubuntu/LRS-FEI/mission_1_all.csv");
     mission_.DisplayPoints();
-    map_.LoadMap("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/dummy_map.txt", 0);
+    // map_.LoadMap("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/dummy_map.txt", 0);
     map_.LoadMap("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/dummy_map2.txt", 1);
+
+    double query_x = 0;
+    double query_y = 0;
+    int z_level = 1;
+    int cell_value = map_.GetCellValue(query_x, query_y, z_level);
+    std::cout << "Cell value at (" << query_x << ", " << query_y << ") on z-level " << z_level << ": " << cell_value << std::endl;
+    query_x = 9*0.05;
+    query_y = 9*0.05;
+    cell_value = map_.GetCellValue(query_x, query_y, z_level);
+    std::cout << "Cell value at (" << query_x << ", " << query_y << ") on z-level " << z_level << ": " << cell_value << std::endl;
 }
 
 MapLoading::MapLoading()
@@ -28,13 +38,13 @@ bool MapLoading::LoadMap(const std::string &map_name, int z_level) {
         for (int x = 0; x < width_; ++x) {
             int value;
             infile >> value;
-            map_data_[Key(x, y, z_level)] = value;
+            map_data_[Key(x, height_-1-y, z_level)] = value;
         }
     }
     PrintMap(z_level);
     std::cout << "Map loaded: " << width_ << "x" << height_ << " at z=" << z_level << std::endl;
-    InflateMap(5, z_level);
-    PrintMap(z_level);
+    // InflateMap(5, z_level);
+    // PrintMap(z_level);
     return true;
 }
 
@@ -79,6 +89,23 @@ void MapLoading::InflateMap(double inflation_radius_cm, int z_level) {
     std::cout << "Map inflated by " << inflation_radius_cm << " cm at z=" << z_level << "." << std::endl; 
 }
 
+std::pair<int, int> MapLoading::ConvertToMapIndices(double x, double y) {
+    int x_index = static_cast<int>(std::round(x / resolution_));
+    int y_index = static_cast<int>(std::round(y / resolution_));
+    return {x_index, y_index};
+}
+
+int MapLoading::GetCellValue(double x, double y, int z_level) {
+    auto [x_index, y_index] = ConvertToMapIndices(x, y);
+    Key key = Key(x_index, y_index, z_level);
+    
+    if (map_data_.find(key) != map_data_.end()) {
+        return map_data_[key];
+    } else {
+        std::cerr << "Error: Coordinate (" << x << ", " << y << ") is out of map bounds." << std::endl;
+        return -1; 
+    }
+}
 
 MissionParser::MissionParser()
 {

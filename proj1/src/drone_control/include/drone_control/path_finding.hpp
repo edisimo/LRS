@@ -37,12 +37,14 @@ public:
     bool LoadMap(const std::string &map_name, int z_level);
     void PrintMap(int z_level);
     void InflateMap(double inflation_radius_cm, int z_level);
+    int GetCellValue(double x, double y, int z_level);
 private: 
     const float resolution_ = 0.05;
     int width_;
     int height_;
     Map3D map_data_;
     void InflateCell(Map3D &inflated_map, int x, int y, int z, int inflationRadiusPx);
+    std::pair<int, int> ConvertToMapIndices(double x, double y);
 
 };
 
