@@ -27,11 +27,15 @@ DroneControl::DroneControl() : Node("drone_control_node")
 
     ChangeMode("GUIDED");
     ArmDrone(true);
-    TakeOff(0, 2);
+    TakeOff(2);
 
     // TODO: Implement position controller and mission commands here -- mavros setpoint, spravit kruh ci je vramci neho
 
     // pathfinding bfs priklad     
+    GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
+    GoToPoint(0, 0, 2, 90, HARD_THRESHOLD_);
+    GoToPoint(0, 0, 2, 180, HARD_THRESHOLD_);
+    GoToPoint(0, 0, 2, 270, HARD_THRESHOLD_);
     GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
     Land();
 }
@@ -179,8 +183,11 @@ void DroneControl::TakeOff(float altitude, float threshold) {
     double roll, pitch, yaw;
     tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
     mavros_msgs::srv::CommandTOL::Request takeoff_request;
+    takeoff_request.min_pitch = 0;
     takeoff_request.yaw = yaw;
     takeoff_request.altitude = altitude;
+    //print yaw and altitude
+    RCLCPP_INFO(this->get_logger(), "Yaw: %f, Altitude: %f", yaw, altitude);
     while (!takeoff_client_->wait_for_service(1s))
     {
         if (!rclcpp::ok())
@@ -280,6 +287,7 @@ void DroneControl::GoToPoint(float x, float y, float z, float yaw, float thresho
             PublishPoseCallback(pose);
         }
     );
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
     
     bool is_within_threshold = false;
     while(rclcpp::ok() && !is_within_threshold) {
