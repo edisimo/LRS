@@ -11,8 +11,29 @@
 #include <tuple>
 #include <filesystem>
 #include <iomanip>
+#include <queue>
+#include <cmath>
+#include <map>
 
+namespace astar {
+    struct Node {
+        // Not a ros node, but A* node
+        int x_, y_, z_;
+        double g_, h_, f_;
+        Node* parent_;
+        // Default constructor necessary for .... some reason i guess something with the unordered map
+        Node()
+            : x_(0), y_(0), z_(0), g_(0), h_(0), f_(0), parent_(nullptr) {}
 
+        Node(int x, int y, int z, double g, double h, Node* parent)
+            : x_(x), y_(y), z_(z), g_(g), h_(h), f_(g + h), parent_(parent) {}
+
+        bool operator>(const Node& other) const {
+            return f_ > other.f_;
+        }
+};
+
+}
 
 class MapLoading
 {
@@ -25,6 +46,8 @@ public:
     constexpr static double GetResolution() { return resolution_; }
     void PrintAllMaps();
     void PrintMap(double z_level);
+    void PrintMap(double z_level, const std::vector<astar::Node>& path);
+    void PrintAllMaps(const std::vector<astar::Node>& path);
 private: 
     static constexpr double resolution_ = 0.05;
     // static constexpr float inflation_radius_cm_ = 25.0;
@@ -49,16 +72,29 @@ public:
     MissionParser();
     void ParsePoints(const std::string& filename);
     void DisplayPoints();
+    const std::vector<Point>& GetPoints() const { return points_; };
 private: 
     std::vector<Point> points_;
+};
+
+class AStar3D
+{
+public:
+    AStar3D(MapLoading& map_loader);
+    std::vector<astar::Node> FindPath(double start_x, double start_y, double start_z,
+                               double goal_x, double goal_y, double goal_z);
+private:
+    MapLoading& map_;
 };
 
 class PathFinding : public rclcpp::Node
 {
 public:
     PathFinding();
+    void Run();
 private:
     MapLoading map_;
     MissionParser mission_;
+    AStar3D astar_;
 };
 #endif //PATH_FINDING_HPP
