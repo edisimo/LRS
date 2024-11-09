@@ -14,18 +14,19 @@
 #include <queue>
 #include <cmath>
 #include <map>
+#include <unordered_set>
 
 namespace astar {
     struct Node {
         // Not a ros node, but A* node
         int x_, y_, z_;
         double g_, h_, f_;
-        Node* parent_;
+        std::shared_ptr<Node> parent_;
         // Default constructor necessary for .... some reason i guess something with the unordered map
         Node()
             : x_(0), y_(0), z_(0), g_(0), h_(0), f_(0), parent_(nullptr) {}
 
-        Node(int x, int y, int z, double g, double h, Node* parent)
+        Node(int x, int y, int z, double g, double h, std::shared_ptr<Node> parent)
             : x_(x), y_(y), z_(z), g_(g), h_(h), f_(g + h), parent_(parent) {}
 
         bool operator>(const Node& other) const {
@@ -34,6 +35,14 @@ namespace astar {
 };
 
 }
+
+struct HashFunc {
+    size_t operator()(const std::tuple<int, int, int>& key) const {
+        auto [x, y, z] = key;
+        return std::hash<int>()(x) ^ std::hash<int>()(y) << 1 ^ std::hash<int>()(z) << 2;
+    }
+};
+
 
 class MapLoading
 {
@@ -48,6 +57,7 @@ public:
     void PrintMap(double z_level);
     void PrintMap(double z_level, const std::vector<astar::Node>& path);
     void PrintAllMaps(const std::vector<astar::Node>& path);
+    int GetZIndex(double z) const;
 private: 
     static constexpr double resolution_ = 0.05;
     // static constexpr float inflation_radius_cm_ = 25.0;

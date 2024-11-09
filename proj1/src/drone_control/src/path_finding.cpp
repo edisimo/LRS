@@ -2,34 +2,20 @@
 
 PathFinding::PathFinding() : Node("path_finding_node"), astar_(map_)
 {
-    mission_.ParsePoints("/home/lrs-ubuntu/LRS-FEI/mission_1_all.csv");
+    // mission_.ParsePoints("/home/lrs-ubuntu/LRS-FEI/mission_1_all.csv");
+    mission_.ParsePoints("/home/lrs-ubuntu/LRS/TEST/test_points.csv");
     mission_.DisplayPoints();
     // map_.LoadAllMaps("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/");
     map_.LoadAllMaps("/home/lrs-ubuntu/LRS/TEST/");
-    std::cout << "-----------------------------------" << std::endl;
-    std::cout << "After inflation:" << std::endl;
     map_.PrintAllMaps();
-
-    int a = map_.GetCellValue(0.01, 0.45, 0.3);
-    int b = map_.GetCellValue(0.04, 0.45, 0.3);
-    int c = map_.GetCellValue(0.06, 0.45, 0.3);
-    int d = map_.GetCellValue(0.09, 0.45, 0.3);
-    int e = map_.GetCellValue(0.44, 0.45, 0.3);
-    int f = map_.GetCellValue(0.46, 0.45, 0.3);
-    std::cout << "Cell1: " << a << std::endl;
-    std::cout << "Cell2: " << b << std::endl;
-    std::cout << "Cell3: " << c << std::endl;
-    std::cout << "Cell4: " << d << std::endl;
-    std::cout << "Cell5: " << e << std::endl;
-    std::cout << "Cell6: " << f << std::endl;
+    Run();
 }
 
 void PathFinding::Run()
 {
-    // Get the mission points
+    RCLCPP_INFO(this->get_logger(), "Running path finding...");
     const std::vector<Point>& points = mission_.GetPoints();
 
-    // Assuming we have at least two points
     if (points.size() < 2) {
         RCLCPP_ERROR(this->get_logger(), "Not enough mission points.");
         return;
@@ -38,9 +24,12 @@ void PathFinding::Run()
     const Point& start = points[0];
     const Point& goal = points[1];
 
-    // Find path using AStar3D
+    RCLCPP_INFO(this->get_logger(), "Start: (%f, %f, %f), Goal: (%f, %f, %f)",
+                start.x_, start.y_, start.z_, goal.x_, goal.y_, goal.z_);
     std::vector<astar::Node> path = astar_.FindPath(start.x_, start.y_, start.z_,
                                              goal.x_, goal.y_, goal.z_);
+    
+    RCLCPP_INFO(this->get_logger(), "Path found with %lu nodes.", path.size());
 
     if (!path.empty()) {
         std::cout << "Path found:" << std::endl;
@@ -48,7 +37,6 @@ void PathFinding::Run()
             std::cout << "(" << node.x_ << ", " << node.y_ << ", " << node.z_ << ")" << std::endl;
         }
 
-        // Print maps with the path marked
         map_.PrintAllMaps(path);
     } else {
         std::cout << "No path found between start and goal." << std::endl;
@@ -256,6 +244,7 @@ void MapLoading::PrintAllMaps()
     for (const auto &pair : maps_)
     {
         double z_level = pair.first;
+        std::cout << "Z-level: " << z_level << std::endl;
         PrintMap(z_level);
         std::cout << std::endl;
     }
@@ -269,6 +258,7 @@ void MapLoading::PrintMap(double z_level, const std::vector<astar::Node>& path)
         RCLCPP_ERROR(logger, "Map at z-level %f not found.", z_level);
         return;
     }
+    RCLCPP_INFO(logger, "Map at z-level %f:", z_level); 
 
     const nav_msgs::msg::OccupancyGrid &map = it->second;
     int width = map.info.width;
@@ -277,17 +267,17 @@ void MapLoading::PrintMap(double z_level, const std::vector<astar::Node>& path)
     double origin_x = map.info.origin.position.x;
     double origin_y = map.info.origin.position.y;
 
-    // Create a set of path coordinates for quick lookup
+    auto z_levels = GetAvailableZLevels();
+
     std::set<std::pair<int, int>> path_coords;
     for (const auto& node : path) {
-        if (fabs(node.z_ - z_level) < 1e-3) { // Nodes at this z-level
-            int x_idx = static_cast<int>((node.x_ - origin_x) / res);
-            int y_idx = static_cast<int>((node.y_ - origin_y) / res);
-            path_coords.insert({x_idx, y_idx});
+        auto node_z = z_levels[node.z_];
+        if (fabs(node_z - z_level) < 1e-3) { 
+            std::cout << "Actual coordinates: " << node.x_*resolution_ << ", " << node.y_*resolution_ << ", " << node_z << std::endl;
+            path_coords.insert({node.x_, node.y_});
         }
+        RCLCPP_INFO(logger, "Node.Z: %f, Z: %f", node_z, z_level);
     }
-
-    RCLCPP_INFO(logger, "Map at z-level %f:", z_level);
 
     for (int y = height - 1; y >= 0; --y)
     {
@@ -319,6 +309,25 @@ void MapLoading::PrintAllMaps(const std::vector<astar::Node>& path)
         double z_level = pair.first;
         PrintMap(z_level, path);
         std::cout << std::endl;
+    }
+}
+
+int MapLoading::GetZIndex(double z) const {
+    auto z_levels = GetAvailableZLevels();
+    if (z_levels.empty()) return -1;
+
+    auto lower = std::lower_bound(z_levels.begin(), z_levels.end(), z);
+    if (lower == z_levels.end()) {
+        return z_levels.size() - 1;
+    }
+    if (lower == z_levels.begin()) {
+        return 0;
+    }
+    auto prev = std::prev(lower);
+    if (std::abs(*prev - z) < std::abs(*lower - z)) {
+        return std::distance(z_levels.begin(), prev);
+    } else {
+        return std::distance(z_levels.begin(), lower);
     }
 }
 
@@ -370,19 +379,35 @@ AStar3D::AStar3D(MapLoading& map_loader)
 std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, double start_z,
                                     double goal_x, double goal_y, double goal_z)
 {
-    // Open list (priority queue) and closed set
+    auto logger = rclcpp::get_logger("AStar3D");
+
+    const double resolution = MapLoading::GetResolution();
+
+    int start_x_idx = static_cast<int>(std::round(start_x / resolution));
+    int start_y_idx = static_cast<int>(std::round(start_y / resolution));
+    int start_z_idx = map_.GetZIndex(start_z);
+
+    int goal_x_idx = static_cast<int>(std::round(goal_x / resolution));
+    int goal_y_idx = static_cast<int>(std::round(goal_y / resolution));
+    int goal_z_idx = map_.GetZIndex(goal_z);
+
+    if (start_z_idx == -1 || goal_z_idx == -1) {
+        RCLCPP_ERROR(logger, "Invalid start or goal z-level.");
+        return {};
+    }
+
     std::priority_queue<astar::Node, std::vector<astar::Node>, std::greater<astar::Node>> open_list;
-    std::unordered_map<std::string, astar::Node> closed_set;
+    std::unordered_set<std::tuple<int, int, int>, HashFunc> closed_set;
+    
+    RCLCPP_INFO(logger, "Finding path from (%f, %f, %f) to (%f, %f, %f)", start_x, start_y, start_z, goal_x, goal_y, goal_z);
+    auto start_node = std::make_shared<astar::Node>(start_x_idx, start_y_idx, start_z_idx, 0.0, 0.0, nullptr);
+    start_node->h_ = std::sqrt(std::pow(goal_x_idx - start_x_idx, 2) +
+                              std::pow(goal_y_idx - start_y_idx, 2) +
+                              std::pow(goal_z_idx - start_z_idx, 2));
+    start_node->f_ = start_node->g_ + start_node->h_;
+    open_list.push(*start_node);
 
-    // Start node
-    astar::Node start_node(start_x, start_y, start_z, 0.0, 0.0, nullptr);
-    start_node.h_ = sqrt(pow(goal_x - start_x, 2) +
-                        pow(goal_y - start_y, 2) +
-                        pow(goal_z - start_z, 2));
-    start_node.f_ = start_node.g_ + start_node.h_;
-    open_list.push(start_node);
-
-    // Directions for neighbors in 3D (26 directions including diagonals)
+    RCLCPP_INFO(logger, "Start node: (%d, %d, %d)", start_x_idx, start_y_idx, start_z_idx);
     std::vector<std::tuple<int, int, int>> directions;
     for (int dx = -1; dx <= 1; ++dx)
         for (int dy = -1; dy <= 1; ++dy)
@@ -390,57 +415,64 @@ std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, doubl
                 if (dx != 0 || dy != 0 || dz != 0)
                     directions.emplace_back(dx, dy, dz);
 
-    const double resolution = MapLoading::GetResolution();
+    RCLCPP_INFO(logger, "Resolution: %f", resolution);
+    auto z_levels = map_.GetAvailableZLevels();
 
-    while (!open_list.empty()) {
+    while (!open_list.empty() && rclcpp::ok()) {
         astar::Node current = open_list.top();
         open_list.pop();
+        RCLCPP_INFO(logger, "Open list size: %lu", open_list.size());
 
-        // Check if goal is reached
-        if (fabs(current.x_ - goal_x) < 1e-6 && fabs(current.y_ - goal_y) < 1e-6 && fabs(current.z_ - goal_z) < 1e-6) {
-            // Reconstruct path
+        if (current.x_ == goal_x_idx && current.y_ == goal_y_idx && current.z_ == goal_z_idx) {
+            RCLCPP_INFO(logger, "Goal reached.");
+            RCLCPP_INFO(logger, "Path cost: %f", current.g_);
+            RCLCPP_INFO(logger, "current x: %d, y: %d, z: %d", current.x_, current.y_, current.z_);
+            RCLCPP_INFO(logger, "goal x: %d, y: %d, z: %d", goal_x_idx, goal_y_idx, goal_z_idx);
             std::vector<astar::Node> path;
-            astar::Node* node = &current;
+            std::shared_ptr<astar::Node> node = std::make_shared<astar::Node>(current);
             while (node != nullptr) {
-                path.push_back(*node);
+                double wx = node->x_ * resolution;
+                double wy = node->y_ * resolution;
+                double wz = z_levels[node->z_];
+                path.emplace_back(astar::Node{node->x_, node->y_, node->z_, node->g_, node->h_, node->parent_});
+                RCLCPP_INFO(logger, "Path node: (%f, %f, %f)", wx, wy, wz);
                 node = node->parent_;
             }
             std::reverse(path.begin(), path.end());
             return path;
         }
 
-        // Mark current node as visited
-        std::string current_key = std::to_string(current.x_) + "_" + std::to_string(current.y_) + "_" + std::to_string(current.z_);
-        closed_set[current_key] = current;
+        closed_set.insert(std::make_tuple(current.x_, current.y_, current.z_));
 
-        // Explore neighbors
         for (const auto& dir : directions) {
-            double nx = current.x_ + std::get<0>(dir) * resolution;
-            double ny = current.y_ + std::get<1>(dir) * resolution;
-            double nz = current.z_ + std::get<2>(dir) * resolution;
+            int nx = current.x_ + std::get<0>(dir);
+            int ny = current.y_ + std::get<1>(dir);
+            int nz = current.z_ + std::get<2>(dir);
 
-            // Check if neighbor is in closed set
-            std::string neighbor_key = std::to_string(nx) + "_" + std::to_string(ny) + "_" + std::to_string(nz);
+            if (nz < 0 || nz >= static_cast<int>(z_levels.size())) continue;
+
+            auto neighbor_key = std::make_tuple(nx, ny, nz);
             if (closed_set.find(neighbor_key) != closed_set.end()) continue;
 
-            // Check if the cell is walkable
-            int cell_value = map_.GetCellValue(nx, ny, nz);
-            if (cell_value == 100 || cell_value == -1) continue; // Obstacle or unknown
+            double wx = nx * resolution;
+            double wy = ny * resolution;
+            double wz = z_levels[nz];
 
-            // Compute costs
-            double movement_cost = sqrt(pow(std::get<0>(dir), 2) +
-                                        pow(std::get<1>(dir), 2) +
-                                        pow(std::get<2>(dir), 2)) * resolution;
+            int cell_value = map_.GetCellValue(wx, wy, wz);
+            if (cell_value == 100 || cell_value == -1) continue; 
+
+            double movement_cost = std::sqrt(std::pow(std::get<0>(dir) * resolution, 2) +
+                                             std::pow(std::get<1>(dir) * resolution, 2) +
+                                             std::pow(z_levels[nz] - z_levels[current.z_], 2));
             double tentative_g = current.g_ + movement_cost;
-            double h = sqrt(pow(goal_x - nx, 2) +
-                            pow(goal_y - ny, 2) +
-                            pow(goal_z - nz, 2));
+            double h = std::sqrt(std::pow(goal_x_idx - nx, 2) +
+                                 std::pow(goal_y_idx - ny, 2) +
+                                 std::pow(goal_z_idx - nz, 2));
 
-            astar::Node neighbor(nx, ny, nz, tentative_g, h, new astar::Node(current));
-
-            open_list.push(neighbor);
+            auto neighbor = std::make_shared<astar::Node>(nx, ny, nz, tentative_g, h, std::make_shared<astar::Node>(current));
+            open_list.push(*neighbor);
         }
     }
 
-    return std::vector<astar::Node>();
+    return {};
 }
