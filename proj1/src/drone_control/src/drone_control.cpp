@@ -25,15 +25,20 @@ DroneControl::DroneControl() : Node("drone_control_node")
         std::this_thread::sleep_for(100ms);
     }
 
-    // ChangeMode("GUIDED");
-    // ArmDrone(true);
-    // TakeOff(2);
+    TakeOff(2);
 
-    // GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
-    // GoToPoint(0, 0, 2, 90, HARD_THRESHOLD_);
-    // GoToPoint(0, 0, 2, 180, HARD_THRESHOLD_);
-    // GoToPoint(0, 0, 2, 270, HARD_THRESHOLD_);
-    // GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
+    // // pathfinding bfs priklad     
+    GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
+    std::this_thread::sleep_for(1s);
+    GoToPoint(0, 0, 2, 90, HARD_THRESHOLD_);
+    std::this_thread::sleep_for(1s);
+    GoToPoint(0, 0, 2, 180, HARD_THRESHOLD_);
+    std::this_thread::sleep_for(1s);
+    GoToPoint(0, 0, 2, 270, HARD_THRESHOLD_);
+    std::this_thread::sleep_for(1s);
+    GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
+
+    
     // Land();
 }
 
@@ -51,14 +56,6 @@ void DroneControl::CustomPathCallback(const drone_control::srv::CustomPath::Requ
 void DroneControl::LocalPosCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {
     current_local_pos_ = *msg;
-
-    // To obtain the position of the drone use this data fields withing the message, please note, that this is the local position of the drone in the NED frame so it is different to the map frame
-    // current_local_pos_.pose.position.x
-    // current_local_pos_.pose.position.y
-    // current_local_pos_.pose.position.z
-    // you can do the same for orientation, but you will not need it for this seminar
-
-    // RCLCPP_INFO(this->get_logger(), "Current Local Position: %f, %f, %f", current_local_pos_.pose.position.x, current_local_pos_.pose.position.y, current_local_pos_.pose.position.z);
 }
 
 void DroneControl::StateCallback(const mavros_msgs::msg::State::SharedPtr msg)
@@ -297,6 +294,7 @@ void DroneControl::GoToPoint(float x, float y, float z, float yaw, float thresho
     );
     std::this_thread::sleep_for(std::chrono::milliseconds(2000));
     
+    //TODO: Check the yaw
     bool is_within_threshold = false;
     while(rclcpp::ok() && !is_within_threshold) {
         rclcpp::spin_some(this->get_node_base_interface());
@@ -313,8 +311,19 @@ void DroneControl::GoToPoint(float x, float y, float z, float yaw, float thresho
     timer.reset();    
 }
 
+void DroneControl::GoToPointGlobal(float x, float y, float z, float yaw, std::string precision, std::string command) {
+    std::transform(command.begin(), command.end(), command.begin(), ::toupper);
+    std::transform(precision.begin(), precision.end(), precision.begin(), ::toupper);
+    const float precision_threshold = precision == "HARD" ? HARD_THRESHOLD_ : SOFT_THRESHOLD_;
+    if(command == "TAKEOFF") {
+        TakeOff(z);
+    }
+    GoToPoint(x, y, z, yaw, precision_threshold);
+    
+}
+
 void DroneControl::PublishPoseCallback(const geometry_msgs::msg::PoseStamped pose) {
     local_pos_pub_->publish(pose);
 }
 
-//TODO: FIND OUT WHAT THE HELL IS GOING ON WITH THE ORIENTATION xD 
+//TODO: FIND OUT WHAT THE HELL IS GOING ON WITH THE ORIENTATION xD  180 - desired_yaw --- not that hard fella :)
