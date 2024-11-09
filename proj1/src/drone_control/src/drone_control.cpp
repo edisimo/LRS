@@ -17,7 +17,7 @@ DroneControl::DroneControl() : Node("drone_control_node")
     auto qos = rclcpp::QoS(rclcpp::QoSInitialization(custom_qos.history, 1), custom_qos);
     local_pos_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
             "/mavros/local_position/pose", qos, std::bind(&DroneControl::LocalPosCallback, this, std::placeholders::_1));
-
+    path_service_ = this->create_service<drone_control::srv::CustomPath>("custom_path", std::bind(&DroneControl::CustomPathCallback, this, std::placeholders::_1, std::placeholders::_2));
     // Wait for MAVROS SITL connection
     while (rclcpp::ok() && !current_state_.connected)
     {
@@ -25,19 +25,27 @@ DroneControl::DroneControl() : Node("drone_control_node")
         std::this_thread::sleep_for(100ms);
     }
 
-    ChangeMode("GUIDED");
-    ArmDrone(true);
-    TakeOff(2);
+    // ChangeMode("GUIDED");
+    // ArmDrone(true);
+    // TakeOff(2);
 
-    // TODO: Implement position controller and mission commands here -- mavros setpoint, spravit kruh ci je vramci neho
+    // GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
+    // GoToPoint(0, 0, 2, 90, HARD_THRESHOLD_);
+    // GoToPoint(0, 0, 2, 180, HARD_THRESHOLD_);
+    // GoToPoint(0, 0, 2, 270, HARD_THRESHOLD_);
+    // GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
+    // Land();
+}
 
-    // pathfinding bfs priklad     
-    GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
-    GoToPoint(0, 0, 2, 90, HARD_THRESHOLD_);
-    GoToPoint(0, 0, 2, 180, HARD_THRESHOLD_);
-    GoToPoint(0, 0, 2, 270, HARD_THRESHOLD_);
-    GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
-    Land();
+void DroneControl::CustomPathCallback(const drone_control::srv::CustomPath::Request::SharedPtr request,
+                                      drone_control::srv::CustomPath::Response::SharedPtr response)
+{
+    RCLCPP_INFO(this->get_logger(), "Received path request");
+    for (const auto &point : request->points)
+    {
+        RCLCPP_INFO(this->get_logger(), "Point: %f, %f, %f, %s, %s", point.x, point.y, point.z, point.precision.c_str(), point.command.c_str());
+    }
+    response->success = true;
 }
 
 void DroneControl::LocalPosCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)

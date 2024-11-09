@@ -1,48 +1,112 @@
 #include "drone_control/path_finding.hpp"
 
 PathFinding::PathFinding() : Node("path_finding_node"), astar_(map_)
-{
+{   
+    path_client_ = this->create_client<drone_control::srv::CustomPath>("custom_path");
     // mission_.ParsePoints("/home/lrs-ubuntu/LRS-FEI/mission_1_all.csv");
     mission_.ParsePoints("/home/lrs-ubuntu/LRS/TEST/test_points.csv");
     mission_.DisplayPoints();
     // map_.LoadAllMaps("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/");
     map_.LoadAllMaps("/home/lrs-ubuntu/LRS/TEST/");
-    map_.PrintAllMaps();
-    Run();
+    // map_.PrintAllMaps();
+    FindTrajectory();
+    SendTrajectory();
 }
 
-void PathFinding::Run()
+void PathFinding::SendTrajectory() {
+    while (!path_client_->wait_for_service(1s))
+    {
+        if (!rclcpp::ok())
+        {
+            RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the path service. Exiting.");
+            return;
+        }
+        RCLCPP_INFO(this->get_logger(), "Waiting for path service...");
+    }
+    auto logger = rclcpp::get_logger("PathFinding");
+    auto request = std::make_shared<drone_control::srv::CustomPath::Request>();
+    for (const auto& path : trajectory_) {
+        for (const auto& point : path.points_) {
+            drone_control::msg::CustomPoint point_msg;
+            point_msg.x = point.x_;
+            point_msg.y = point.y_;
+            point_msg.z = point.z_;
+            point_msg.precision = point.precision_;
+            point_msg.command = point.command_;
+            request->points.push_back(point_msg);
+        }
+    }
+    auto result = path_client_->async_send_request(request);
+    if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result) ==
+        rclcpp::FutureReturnCode::SUCCESS)
+    {
+        if (result.get()->success)
+        {
+            RCLCPP_INFO(logger, "Path sent");
+        }
+        else
+        {
+            RCLCPP_ERROR(logger, "Failed to send path");
+        }
+    }
+    else
+    {
+        RCLCPP_ERROR(logger, "Service call failed");
+    }
+}
+
+void PathFinding::FindTrajectory()
 {
     RCLCPP_INFO(this->get_logger(), "Running path finding...");
-    const std::vector<Point>& points = mission_.GetPoints();
-
+    std::vector<Point>& points = mission_.GetPoints();
+    auto z_levels = map_.GetAvailableZLevels();
     if (points.size() < 2) {
         RCLCPP_ERROR(this->get_logger(), "Not enough mission points.");
         return;
     }
+    int i = 0;
 
-    const Point& start = points[0];
-    const Point& goal = points[1];
-
-    RCLCPP_INFO(this->get_logger(), "Start: (%f, %f, %f), Goal: (%f, %f, %f)",
-                start.x_, start.y_, start.z_, goal.x_, goal.y_, goal.z_);
-    std::vector<astar::Node> path = astar_.FindPath(start.x_, start.y_, start.z_,
-                                             goal.x_, goal.y_, goal.z_);
-    
-    RCLCPP_INFO(this->get_logger(), "Path found with %lu nodes.", path.size());
-
-    if (!path.empty()) {
-        std::cout << "Path found:" << std::endl;
-        for (const auto& node : path) {
-            std::cout << "(" << node.x_ << ", " << node.y_ << ", " << node.z_ << ")" << std::endl;
+    while(points.size() > 1) {
+        Point& start = points[0];
+        Point& goal = points[1];
+        std::vector<astar::Node> path = astar_.FindPath(start.x_, start.y_, start.z_,
+                                goal.x_, goal.y_, goal.z_);
+        if (!path.empty()) {
+            std::cout << "Path found:" << std::endl;
+        } 
+        else {
+            std::cout << "No path found between start and goal." << std::endl;
         }
-
-        map_.PrintAllMaps(path);
         path = SimplifyPath(path, map_);
-        map_.PrintAllMaps(path);
-
-    } else {
-        std::cout << "No path found between start and goal." << std::endl;
+        RCLCPP_INFO(this->get_logger(), "Path found with %lu nodes.", path.size());
+        // map_.PrintAllMaps(path);
+        ActualPath actual_path;
+        auto start_path_size = path.size();
+        while (!path.empty()) {
+            auto node = path.front();
+            path.erase(path.begin());
+            //first point
+            if (path.size()==start_path_size-1 && i==0) {
+                actual_path.AddPoint(Point(node.x_*map_.GetResolution(), node.y_*map_.GetResolution(), z_levels[node.z_], start.precision_, start.command_));
+            }   
+            //last point
+            else if (path.empty()) {
+                actual_path.AddPoint(Point(node.x_*map_.GetResolution(), node.y_*map_.GetResolution(), z_levels[node.z_], goal.precision_, goal.command_));
+            }
+            else {
+                actual_path.AddPoint(Point(node.x_*map_.GetResolution(), node.y_*map_.GetResolution(), z_levels[node.z_], "soft", "-"));
+            }
+        }
+        trajectory_.push_back(actual_path);
+        points.erase(points.begin());
+        i++;
+    }
+    RCLCPP_INFO(this->get_logger(), "Finished path finding. Trajectory size: %lu", trajectory_.size());
+    for (const auto& path : trajectory_) {
+        RCLCPP_INFO(this->get_logger(), "Actual path:");
+        for (const auto& point : path.points_) {
+            RCLCPP_INFO(this->get_logger(), "Point: (%f, %f, %f), Precision: %s, Command: %s", point.x_, point.y_, point.z_, point.precision_.c_str(), point.command_.c_str());
+        }
     }
 }
 
@@ -396,10 +460,8 @@ void MapLoading::PrintMap(double z_level, const std::vector<astar::Node>& path)
     for (const auto& node : path) {
         auto node_z = z_levels[node.z_];
         if (fabs(node_z - z_level) < 1e-3) { 
-            std::cout << "Actual coordinates: " << node.x_*resolution_ << ", " << node.y_*resolution_ << ", " << node_z << std::endl;
             path_coords.insert({node.x_, node.y_});
         }
-        RCLCPP_INFO(logger, "Node.Z: %f, Z: %f", node_z, z_level);
     }
 
     for (int y = height - 1; y >= 0; --y)
@@ -530,7 +592,6 @@ std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, doubl
     start_node->f_ = start_node->g_ + start_node->h_;
     open_list.push(*start_node);
 
-    RCLCPP_INFO(logger, "Start node: (%d, %d, %d)", start_x_idx, start_y_idx, start_z_idx);
     std::vector<std::tuple<int, int, int>> directions;
     for (int dx = -1; dx <= 1; ++dx)
         for (int dy = -1; dy <= 1; ++dy)
@@ -544,13 +605,9 @@ std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, doubl
     while (!open_list.empty() && rclcpp::ok()) {
         astar::Node current = open_list.top();
         open_list.pop();
-        RCLCPP_INFO(logger, "Open list size: %lu", open_list.size());
 
         if (current.x_ == goal_x_idx && current.y_ == goal_y_idx && current.z_ == goal_z_idx) {
             RCLCPP_INFO(logger, "Goal reached.");
-            RCLCPP_INFO(logger, "Path cost: %f", current.g_);
-            RCLCPP_INFO(logger, "current x: %d, y: %d, z: %d", current.x_, current.y_, current.z_);
-            RCLCPP_INFO(logger, "goal x: %d, y: %d, z: %d", goal_x_idx, goal_y_idx, goal_z_idx);
             std::vector<astar::Node> path;
             std::shared_ptr<astar::Node> node = std::make_shared<astar::Node>(current);
             while (node != nullptr) {

@@ -1,0 +1,4 @@
+# CustomPath.srv
+CustomPoint[] points  # Request: An array of Point messages
+---
+bool success  # Response: A simple success flag

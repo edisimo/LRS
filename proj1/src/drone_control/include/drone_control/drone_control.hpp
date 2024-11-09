@@ -14,6 +14,8 @@
 #include <tf2/convert.h>
 #include <geometry_msgs/msg/pose.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include "drone_control/srv/custom_path.hpp"
+#include "drone_control/msg/custom_point.hpp"
 
 
 using namespace std::chrono_literals;
@@ -32,6 +34,8 @@ private:
     void TakeOff(float altitude, float threshold = SOFT_THRESHOLD_);
     void Land();
     void GoToPoint(float x, float y, float z, float yaw, float threshold);
+    void CustomPathCallback(const drone_control::srv::CustomPath::Request::SharedPtr request,
+                      drone_control::srv::CustomPath::Response::SharedPtr response);
 
     static constexpr float SOFT_THRESHOLD_ = 0.1f;
     static constexpr float HARD_THRESHOLD_ = 0.05;
@@ -46,7 +50,7 @@ private:
     rclcpp::Client<mavros_msgs::srv::CommandTOL>::SharedPtr land_client_;
 
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr local_pos_sub_;
-
+    rclcpp::Service<drone_control::srv::CustomPath>:: SharedPtr path_service_;
     mavros_msgs::msg::State current_state_;
     geometry_msgs::msg::PoseStamped current_local_pos_;
 };

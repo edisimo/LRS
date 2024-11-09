@@ -3,6 +3,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include <iostream>
+#include <chrono>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -15,6 +16,10 @@
 #include <cmath>
 #include <map>
 #include <unordered_set>
+#include "drone_control/srv/custom_path.hpp"
+#include "drone_control/msg/custom_point.hpp"
+
+using namespace std::chrono_literals;
 
 namespace astar {
     struct Node {
@@ -76,13 +81,20 @@ struct Point {
         : x_(x), y_(y), z_(z), precision_(precision), command_(command) {}
 };
 
+class ActualPath {
+    public:
+        ActualPath(){};
+        void AddPoint(const Point& point) { points_.push_back(point); }
+        std::vector<Point> points_;
+};
+
 class MissionParser
 {
 public:
     MissionParser();
     void ParsePoints(const std::string& filename);
     void DisplayPoints();
-    const std::vector<Point>& GetPoints() const { return points_; };
+    std::vector<Point>& GetPoints() { return points_; };
 private: 
     std::vector<Point> points_;
 };
@@ -101,12 +113,15 @@ class PathFinding : public rclcpp::Node
 {
 public:
     PathFinding();
-    void Run();
+    void FindTrajectory();
+    void SendTrajectory();
     std::vector<astar::Node> SimplifyPath(const std::vector<astar::Node>& path, MapLoading& map);
     bool IsLineOfSight(const astar::Node& start, const astar::Node& end, MapLoading& map); 
 private:
     MapLoading map_;
     MissionParser mission_;
     AStar3D astar_;
+    std::vector<ActualPath> trajectory_;
+    rclcpp::Client<drone_control::srv::CustomPath>::SharedPtr  path_client_;   
 };
 #endif //PATH_FINDING_HPP

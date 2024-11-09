@@ -1,0 +1,35 @@
+cython3 default-libmysqlclient-dev fonts-lato freeglut3-dev google-mock googletest graphicsmagick-libmagick-dev-compat ignition-tools libamd2 libarmadillo-dev libarpack2-dev libasio-dev libassimp-dev
+  libavdevice-dev libavfilter-dev libblas-dev libboost-system1.67.0 libboost-thread1.67.0 libbtf1 libbullet-dev libbz2-dev libcairo-script-interpreter2 libcairo2-dev libcamd2 libccd-dev libccolamd2
+  libceres-dev libceres1 libcfitsio-dev libcfitsio-doc libcharls-dev libcholmod3 libclang1-10 libcolamd2 libcxsparse3 libdap-dev libdapserver7v5 libdart-collision-bullet-dev libdart-collision-ode-dev
+  libdart-dev libdart-external-ikfast-dev libdart-external-odelcpsolver-dev libdart-utils-dev libdart-utils-urdf-dev libdart6-collision-ode libdart6-utils-urdf libepsilon-dev libfcl-dev libflann-dev
+  libflann1.9 libfontconfig1-dev libfreeimage-dev libfreexl-dev libfyba-dev libgdal-dev libgeos-dev libgeotiff-dev libgflags-dev libgflags2.2 libgif-dev libgl2ps-dev libglew-dev libgoogle-glog-dev
+  libgoogle-glog0v5 libgoogle-perftools4 libgraphblas3 libgraphics-magick-perl libgraphicsmagick++-q16-12 libgraphicsmagick++1-dev libgraphicsmagick-q16-3 libgraphicsmagick1-dev libgtest-dev libgts-dev
+  libhdf5-mpi-dev libhdf5-openmpi-dev libice-dev libignition-common3-av libignition-common3-events libignition-common3-graphics libignition-common3-profiler libignition-transport8-log libjson-c-dev
+  libjsoncpp-dev libklu1 libkml-dev libkmlconvenience1 libkmlregionator1 libkmlxsd1 liblapack-dev liblcms2-dev libldl2 libllvm10 liblua5.2-0 liblua5.2-dev liblz4-dev libmetis5 libminizip-dev
+  libmongoclient0 libmongoose2 libmysqlclient-dev libncurses-dev libnetcdf-cxx-legacy-dev libnorm-dev liboctomap-dev libode-dev libogdi-dev libogre-1.9-dev libomp-10-dev libomp-dev libomp5-10
+  libopenjp2-7-dev libopenni-dev libopenni2-dev libpcl-apps1.10 libpcl-dev libpgm-dev libpixman-1-dev libpoppler-dev libpoppler-private-dev libpostproc-dev libpq-dev libproj-dev libprotobuf-dev
+  libprotobuf-lite17 libprotoc-dev libprotoc17 libpyside2-dev libpyside2-py3-5.14 libpython2-stdlib libpython2.7-minimal libpython2.7-stdlib libqhull-dev libqhull-r7 libqt5concurrent5
+  libqt5designercomponents5 libqt5opengl5-dev libqt5positioning5 libqt5qml5 libqt5quick5 libqt5quickparticles5 libqt5quickshapes5 libqt5quicktest5 libqt5quickwidgets5 libqt5sensors5 libqt5webchannel5
+  libqt5webkit5 libqt5webkit5-dev libqt5x11extras5 libqwt-qt5-dev librbio2 libreadline-dev libruby2.7 libshiboken2-dev libshiboken2-py3-5.14 libsimbody-dev libsm-dev libsodium-dev libspatialite-dev
+  libspdlog-dev libspdlog1 libspqr2 libsqlite3-dev libsuitesparse-dev libsuitesparseconfig5 libsuperlu-dev libtar-dev libtcmalloc-minimal4 libtheora-dev libtinyxml2-dev libumfpack5 liburdfdom-dev
+  liburdfdom-headers-dev liburdfdom-model liburdfdom-model-state liburdfdom-sensor liburdfdom-world liburiparser-dev libusb-1.0-0-dev libusb-1.0-doc libvtk7-dev libvtk7-java libvtk7-jni libvtk7-qt-dev
+  libvtk7.1p-qt libvulkan-dev libwmf-dev libxaw7-dev libxcb-render0-dev libxcb-shm0-dev libxerces-c-dev libxfixes-dev libxft-dev libxi-dev libxmu-dev libxmu-headers libxpm-dev libxrandr-dev
+  libxrender-dev libxss-dev libxt-dev libzip-dev libzmq3-dev libzstd-dev mongo-tools mongodb mongodb-clients mongodb-server mongodb-server-core protobuf-compiler pyqt5-dev
+  python-backports.functools-lru-cache python-bs4 python-chardet python-html5lib python-lxml python-pkg-resources python-six python-soupsieve python-webencodings python2 python2-minimal python2.7
+  python2.7-minimal python3-autobahn python3-automat python3-cbor python3-colcon-argcomplete python3-colcon-bash python3-colcon-cd python3-colcon-defaults python3-colcon-devtools
+  python3-colcon-installed-package-information python3-colcon-library-path python3-colcon-metadata python3-colcon-notification python3-colcon-output python3-colcon-override-check
+  python3-colcon-package-information python3-colcon-package-selection python3-colcon-parallel-executor python3-colcon-pkg-config python3-colcon-powershell python3-colcon-python-setup-py
+  python3-colcon-recursive-crawl python3-colcon-test-result python3-colcon-zsh python3-constantly python3-hamcrest python3-hyperlink python3-incremental python3-lark python3-lz4 python3-mock
+  python3-mpi4py python3-pbr python3-png python3-pyasn1 python3-pyasn1-modules python3-pyqrcode python3-pyqt5.qtsvg python3-pyside2.qtcore python3-pyside2.qtgui python3-pyside2.qtsvg
+  python3-pyside2.qtwidgets python3-service-identity python3-sip-dev python3-snappy python3-trie python3-twisted python3-twisted-bin python3-txaio python3-u-msgpack python3-ubjson python3-vtk7
+  python3-wsaccel python3-zope.interface qdoc-qt5 qhelpgenerator-qt5 qt5-assistant qt5-qmake qt5-qmake-bin qt5-qmltooling-plugins qtattributionsscanner-qt5 qtbase5-dev qtbase5-dev-tools qtchooser
+  qtdeclarative5-dev qtdeclarative5-dev-tools qttools5-dev qttools5-dev-tools qttools5-private-dev rake ros-foxy-ament-index-cpp ros-foxy-ament-index-python ros-foxy-ament-package ros-foxy-angles
+  ros-foxy-cartographer ros-foxy-class-loader ros-foxy-domain-coordinator ros-foxy-dynamixel-sdk ros-foxy-eigen-stl-containers ros-foxy-eigen3-cmake-module ros-foxy-fastcdr
+  ros-foxy-fastrtps-cmake-module ros-foxy-gmock-vendor ros-foxy-gtest-vendor ros-foxy-kdl-parser ros-foxy-launch ros-foxy-launch-testing ros-foxy-libcurl-vendor ros-foxy-libmavconn
+  ros-foxy-libyaml-vendor ros-foxy-mavlink ros-foxy-message-filters ros-foxy-octomap ros-foxy-ompl ros-foxy-orocos-kdl ros-foxy-osrf-pycommon ros-foxy-pluginlib ros-foxy-pybind11-vendor
+  ros-foxy-python-cmake-module ros-foxy-python-qt-binding ros-foxy-random-numbers ros-foxy-rcl-logging-spdlog ros-foxy-rcl-yaml-param-parser ros-foxy-rcpputils ros-foxy-rcutils
+  ros-foxy-resource-retriever ros-foxy-ros2-control-test-assets ros-foxy-rosidl-adapter ros-foxy-rosidl-parser ros-foxy-rosidl-runtime-py ros-foxy-rosidl-typesupport-interface ros-foxy-rpyutils
+  ros-foxy-rviz-assimp-vendor ros-foxy-rviz-ogre-vendor ros-foxy-rviz-rendering ros-foxy-spdlog-vendor ros-foxy-tinyxml2-vendor ros-foxy-tracetools ros-foxy-xacro ros-foxy-yaml-cpp-vendor ruby
+  ruby-minitest ruby-net-telnet ruby-power-assert ruby-test-unit ruby-xmlrpc ruby2.7 rubygems-integration shiboken2 sip-dev tcl-dev tcl-vtk7 tcl8.6-dev tk-dev tk8.6-dev unixodbc-dev vtk7
+  x11proto-input-dev x11proto-randr-dev x11proto-scrnsaver-dev
+
