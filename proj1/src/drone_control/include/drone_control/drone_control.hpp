@@ -33,17 +33,28 @@ private:
     void ArmDrone(bool arm_flag);
     void TakeOff(float altitude, float threshold = SOFT_THRESHOLD_);
     void Land();
-    void LandTakeoff();
+    void LandTakeoff(double altitude, float threshold = SOFT_THRESHOLD_);
     void GoToPoint(float x, float y, float z, float yaw, float threshold);
-    void GoToPointGlobal(float x, float y, float z, float yaw, std::string precision , std::string command);
+    void GoToPointGlobal(float x, float y, float z, std::string precision , std::string command);
     void CustomPathCallback(const drone_control::srv::CustomPath::Request::SharedPtr request,
                       drone_control::srv::CustomPath::Response::SharedPtr response);
 
+    double LocalToGlobalX(double local_y) {return local_y + GAZEBO_START_X_;};
+    double LocalToGlobalY(double local_x) {return -local_x + GAZEBO_START_Y_;};
+    double LocalToGlobalYaw(double local_yaw) {return M_PI - local_yaw;};
+
+    double GlobalToLocalX(double global_y) {return -global_y + GAZEBO_START_Y_;};
+    double GlobalToLocalY(double global_x) {return global_x - GAZEBO_START_X_;};
+    double GlobalToLocalYaw(double global_yaw) {return M_PI - global_yaw;};
+
     static constexpr float SOFT_THRESHOLD_ = 0.1f;
     static constexpr float HARD_THRESHOLD_ = 0.05;
-    static constexpr int TAKEOFF_TIME_LIMIT_ = 15; 
+    static constexpr float GAZEBO_START_X_ = 13.6f;
+    static constexpr float GAZEBO_START_Y_ = 1.5f;
+    static constexpr int LAND_TAKEOFF_TIME_LIMIT_ = 15; 
 
-    double drone_x_global_, drone_y_global_, drone_z_global_, drone_yaw_global_;
+    double drone_x_global_, drone_y_global_, drone_z_global_, drone_yaw_global_ = 0;
+    double drone_x_local_, drone_y_local_, drone_z_local_, drone_yaw_local_ = 0;
 
     rclcpp::Subscription<mavros_msgs::msg::State>::SharedPtr state_sub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr local_pos_pub_;

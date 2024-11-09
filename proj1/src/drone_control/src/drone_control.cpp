@@ -26,17 +26,37 @@ DroneControl::DroneControl() : Node("drone_control_node")
     }
 
     TakeOff(2);
+    LandTakeoff(2);
+    // // // pathfinding bfs priklad     
+    // GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
+    // std::this_thread::sleep_for(1s);
+    // GoToPoint(0, 0, 2, 90, HARD_THRESHOLD_);
+    // std::this_thread::sleep_for(1s);
+    // GoToPoint(0, 0, 2, 180, HARD_THRESHOLD_);
+    // std::this_thread::sleep_for(1s);
+    // GoToPoint(0, 0, 2, 270, HARD_THRESHOLD_);
+    // std::this_thread::sleep_for(1s);
+    // GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
 
-    // // pathfinding bfs priklad     
-    GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
-    std::this_thread::sleep_for(1s);
-    GoToPoint(0, 0, 2, 90, HARD_THRESHOLD_);
-    std::this_thread::sleep_for(1s);
-    GoToPoint(0, 0, 2, 180, HARD_THRESHOLD_);
-    std::this_thread::sleep_for(1s);
-    GoToPoint(0, 0, 2, 270, HARD_THRESHOLD_);
-    std::this_thread::sleep_for(1s);
-    GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
+    // double x = 2;
+    // double y = -1;
+    // double yaw = 90*M_PI/180.0;
+    // std::cout << "Local x: " << x << std::endl;
+    // std::cout << "Local y: " << y << std::endl;
+    // std::cout << "Local yaw: " << yaw << std::endl;
+    // double global_x = LocalToGlobalX(y);
+    // double global_y = LocalToGlobalY(x);
+    // double global_yaw = LocalToGlobalYaw(yaw);
+    // std::cout << "Global x: " << global_x << std::endl;
+    // std::cout << "Global y: " << global_y << std::endl;
+    // std::cout << "Global yaw: " << global_yaw << std::endl;
+
+    // x = GlobalToLocalX(global_y);
+    // y = GlobalToLocalY(global_x);
+    // yaw = GlobalToLocalYaw(global_yaw);
+    // std::cout << "Local x: " << x << std::endl;
+    // std::cout << "Local y: " << y << std::endl;
+    // std::cout << "Local yaw: " << yaw << std::endl;
 
     
     // Land();
@@ -56,12 +76,24 @@ void DroneControl::CustomPathCallback(const drone_control::srv::CustomPath::Requ
 void DroneControl::LocalPosCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {
     current_local_pos_ = *msg;
+    drone_x_local_ = current_local_pos_.pose.position.x;
+    drone_y_local_ = current_local_pos_.pose.position.y;
+    drone_z_local_ = current_local_pos_.pose.position.z;
+    tf2::Quaternion q;
+    tf2::fromMsg(current_local_pos_.pose.orientation, q);
+    double roll, pitch, yaw;
+    tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+    drone_yaw_local_ = yaw;
+
+    drone_x_global_ = LocalToGlobalX(drone_y_local_);
+    drone_y_global_ = LocalToGlobalY(drone_x_local_);
+    drone_z_global_ = drone_z_local_;
+    drone_yaw_global_ = LocalToGlobalYaw(drone_yaw_local_);
 }
 
 void DroneControl::StateCallback(const mavros_msgs::msg::State::SharedPtr msg)
 {
     current_state_ = *msg;
-    // RCLCPP_INFO(this->get_logger(), "Current State: %s", current_state_.mode.c_str());
 }
 
 
@@ -183,16 +215,12 @@ void DroneControl::TakeOff(float altitude, float threshold) {
         ArmDrone(true);
     }
 
-    tf2::Quaternion q;
-    tf2::fromMsg(current_local_pos_.pose.orientation, q);
-    double roll, pitch, yaw;
-    tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
     mavros_msgs::srv::CommandTOL::Request takeoff_request;
     takeoff_request.min_pitch = 0;
-    takeoff_request.yaw = yaw;
+    takeoff_request.yaw = drone_yaw_local_;
     takeoff_request.altitude = altitude;
     //print yaw and altitude
-    RCLCPP_INFO(this->get_logger(), "Yaw: %f, Altitude: %f", yaw, altitude);
+    RCLCPP_INFO(this->get_logger(), "Yaw: %f, Altitude: %f", drone_yaw_local_, altitude);
     while (!takeoff_client_->wait_for_service(1s))
     {
         if (!rclcpp::ok())
@@ -224,7 +252,7 @@ void DroneControl::TakeOff(float altitude, float threshold) {
     auto start = std::chrono::steady_clock::now();
     while(rclcpp::ok()) {
         rclcpp::spin_some(this->get_node_base_interface());
-        float dz = altitude - current_local_pos_.pose.position.z;
+        float dz = altitude - drone_z_local_;
         float distance = std::sqrt(dz*dz);
         if(distance <= threshold) {
             RCLCPP_INFO(this->get_logger(), "Takeoff position achieved");
@@ -233,8 +261,8 @@ void DroneControl::TakeOff(float altitude, float threshold) {
         auto now = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        if (elapsed >= TAKEOFF_TIME_LIMIT_) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to achieve takeoff position within time limit - %ds", TAKEOFF_TIME_LIMIT_);
+        if (elapsed >= LAND_TAKEOFF_TIME_LIMIT_) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to achieve takeoff position within time limit - %ds", LAND_TAKEOFF_TIME_LIMIT_);
             break;
         }
     }
@@ -243,12 +271,8 @@ void DroneControl::TakeOff(float altitude, float threshold) {
 void DroneControl::Land() {
     //TODO: Check if the drone is in the air before landing
     //TODO: Verify that the drone has landed
-    tf2::Quaternion quat;
-    tf2::fromMsg(current_local_pos_.pose.orientation, quat);
-    double roll, pitch, yaw;
-    tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
     mavros_msgs::srv::CommandTOL::Request land_request;
-    land_request.yaw = yaw;
+    land_request.yaw = drone_yaw_local_;
     while (!land_client_->wait_for_service(1s))
     {
         if (!rclcpp::ok())
@@ -275,6 +299,32 @@ void DroneControl::Land() {
     {
         RCLCPP_ERROR(this->get_logger(), "Service call failed");
     }
+    auto start = std::chrono::steady_clock::now();
+    while(rclcpp::ok()) {
+        rclcpp::spin_some(this->get_node_base_interface());
+        float dz = 0 - drone_z_local_;
+        float distance = std::sqrt(dz*dz);
+        if(distance <= SOFT_THRESHOLD_) {
+            RCLCPP_INFO(this->get_logger(), "Land position achieved");
+            break;
+        }
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        if (elapsed >= LAND_TAKEOFF_TIME_LIMIT_) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to achieve land position within time limit - %ds", LAND_TAKEOFF_TIME_LIMIT_);
+            break;
+        }
+    }
+}
+
+void DroneControl::LandTakeoff(double altitude, float threshold) {
+    Land();
+    while(rclcpp::ok() && current_state_.armed) {
+        rclcpp::spin_some(this->get_node_base_interface());
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    TakeOff(altitude, threshold);
 }
 
 void DroneControl::GoToPoint(float x, float y, float z, float yaw, float threshold) {
@@ -298,32 +348,43 @@ void DroneControl::GoToPoint(float x, float y, float z, float yaw, float thresho
     bool is_within_threshold = false;
     while(rclcpp::ok() && !is_within_threshold) {
         rclcpp::spin_some(this->get_node_base_interface());
-        float dx = x - current_local_pos_.pose.position.x;
-        float dy = y - current_local_pos_.pose.position.y;
-        float dz = z - current_local_pos_.pose.position.z;
+        float dx = x - drone_x_local_;
+        float dy = y - drone_y_local_;
+        float dz = z - drone_z_local_;
         float distance = std::sqrt(dx*dx + dy*dy + dz*dz);
-        RCLCPP_INFO(this->get_logger(), "Distance: %f", distance);
+        // RCLCPP_INFO(this->get_logger(), "Distance: %f", distance);
         is_within_threshold = distance <= threshold;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-    RCLCPP_INFO(this->get_logger(), "Drone at position");
+    RCLCPP_INFO(this->get_logger(), "Drone at point (LOCAL): %f, %f, %f, %f", drone_x_local_, drone_y_local_, drone_z_local_, drone_yaw_local_);
     timer.reset();    
 }
 
-void DroneControl::GoToPointGlobal(float x, float y, float z, float yaw, std::string precision, std::string command) {
+void DroneControl::GoToPointGlobal(float x, float y, float z, std::string precision, std::string command) {
     std::transform(command.begin(), command.end(), command.begin(), ::toupper);
     std::transform(precision.begin(), precision.end(), precision.begin(), ::toupper);
     const float precision_threshold = precision == "HARD" ? HARD_THRESHOLD_ : SOFT_THRESHOLD_;
-    if(command == "TAKEOFF") {
-        TakeOff(z);
+    double yaw = drone_yaw_global_;
+    if (command.find("YAW") == 0) { 
+        std::string number_part = command.substr(3); 
+
+        int yaw_value = std::stoi(number_part);
+        yaw = yaw_value*M_PI/180.0;
     }
-    GoToPoint(x, y, z, yaw, precision_threshold);
+    else if(command == "TAKEOFF") {
+        TakeOff(z, precision_threshold);
+    }
+    GoToPoint(GlobalToLocalX(y), GlobalToLocalY(x), z, GlobalToLocalYaw(yaw), precision_threshold);
+    if(command == "LAND") {
+        Land();
+    }
+    else if(command == "LANDTAKEOFF") {
+        LandTakeoff(z, precision_threshold);
+    }
     
 }
 
 void DroneControl::PublishPoseCallback(const geometry_msgs::msg::PoseStamped pose) {
     local_pos_pub_->publish(pose);
 }
-
-//TODO: FIND OUT WHAT THE HELL IS GOING ON WITH THE ORIENTATION xD  180 - desired_yaw --- not that hard fella :)
