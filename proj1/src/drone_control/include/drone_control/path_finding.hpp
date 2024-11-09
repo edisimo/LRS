@@ -22,8 +22,13 @@ public:
     bool LoadMapPGM(const std::string &map_name, nav_msgs::msg::OccupancyGrid &map, double z_level);
     int GetCellValue(double x, double y, double z_level);
     std::vector<double> GetAvailableZLevels() const;
+    constexpr static double GetResolution() { return resolution_; }
+    void PrintAllMaps();
+    void PrintMap(double z_level);
 private: 
-    static constexpr float resolution_ = 0.05;
+    static constexpr double resolution_ = 0.05;
+    // static constexpr float inflation_radius_cm_ = 25.0;
+    static constexpr double inflation_radius_cm_ = 0.0;
     std::map<double, nav_msgs::msg::OccupancyGrid> maps_;
     void InflateObstacles(nav_msgs::msg::OccupancyGrid &map, int inflation_radius_cm);
 };

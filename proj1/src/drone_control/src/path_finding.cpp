@@ -2,31 +2,26 @@
 
 PathFinding::PathFinding() : Node("path_finding_node")
 {
-    RCLCPP_INFO(this->get_logger(), "HELLO WORLD");
     mission_.ParsePoints("/home/lrs-ubuntu/LRS-FEI/mission_1_all.csv");
     mission_.DisplayPoints();
-    // map_.LoadMap("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/dummy_map.txt", 0);
-    // map_.LoadMap("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/dummy_map2.txt", 1);
-    map_.LoadAllMaps("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/");
+    // map_.LoadAllMaps("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/");
+    map_.LoadAllMaps("/home/lrs-ubuntu/LRS/TEST/");
+    std::cout << "-----------------------------------" << std::endl;
+    std::cout << "After inflation:" << std::endl;
+    map_.PrintAllMaps();
 
-    // Example usage: Get cell value at specific coordinates and z-level
-    double x = 1.0; // x coordinate in meters
-    double y = 2.0; // y coordinate in meters
-    double z_level = 25.5; // z-level in meters or your unit
-
-    int cell_value = map_.GetCellValue(x, y, z_level);
-    if (cell_value != -1)
-    {
-        RCLCPP_INFO(this->get_logger(), "Cell value at (%f, %f, %f): %d", x, y, z_level, cell_value);
-    }
-
-    // Get list of available z-levels
-    std::vector<double> z_levels = map_.GetAvailableZLevels();
-    RCLCPP_INFO(this->get_logger(), "Available z-levels:");
-    for (double z : z_levels)
-    {
-        RCLCPP_INFO(this->get_logger(), "%f", z);
-    }
+    int a = map_.GetCellValue(0.01, 0.45, 0.3);
+    int b = map_.GetCellValue(0.04, 0.45, 0.3);
+    int c = map_.GetCellValue(0.06, 0.45, 0.3);
+    int d = map_.GetCellValue(0.09, 0.45, 0.3);
+    int e = map_.GetCellValue(0.44, 0.45, 0.3);
+    int f = map_.GetCellValue(0.46, 0.45, 0.3);
+    std::cout << "Cell1: " << a << std::endl;
+    std::cout << "Cell2: " << b << std::endl;
+    std::cout << "Cell3: " << c << std::endl;
+    std::cout << "Cell4: " << d << std::endl;
+    std::cout << "Cell5: " << e << std::endl;
+    std::cout << "Cell6: " << f << std::endl;
 }
 
 MapLoading::MapLoading()
@@ -108,9 +103,7 @@ bool MapLoading::LoadMapPGM(const std::string &map_name, nav_msgs::msg::Occupanc
             }
         }
     }
-    //TODO: constant inflation radius
-    double inflation_radius_cm = 15.0;
-    InflateObstacles(map, inflation_radius_cm);
+    InflateObstacles(map, inflation_radius_cm_);
     return true;
 }
 
@@ -135,23 +128,39 @@ void MapLoading::InflateObstacles(nav_msgs::msg::OccupancyGrid &map, int inflati
 }
 
 int MapLoading::GetCellValue(double x, double y, double z_level) {
+    auto logger = rclcpp::get_logger("MapLoading");
+    auto available_z_levels = GetAvailableZLevels();
+    std::sort(available_z_levels.begin(), available_z_levels.end());
+    //print levels
+    // for (auto i : available_z_levels)
+    // {
+    //     std::cout << i << std::endl;
+    // }
+    auto lower = std::lower_bound(available_z_levels.begin(), available_z_levels.end(), z_level);
+    if (lower == available_z_levels.end()) {
+        lower = std::prev(lower);
+    } else if (lower != available_z_levels.begin()) {
+        auto prev = std::prev(lower);
+        if (std::abs(*prev - z_level) < std::abs(*lower - z_level)) {
+            lower = prev;
+        }
+    }
+    z_level = *lower;
+
     auto it = maps_.find(z_level);
     if (it == maps_.end()) {
-        if (maps_.empty()) return -1;
-        auto lower = maps_.lower_bound(z_level);
-        if (lower == maps_.end()) {
-            lower = std::prev(lower);
-        }
-        z_level = lower->first;
-        it = lower;
+        RCLCPP_ERROR(logger, "Map at z-level %f not found.", z_level);
+        return -1;
     }
 
     const nav_msgs::msg::OccupancyGrid &map = it->second;
     int width = map.info.width;
     int height = map.info.height;
     double res = map.info.resolution;
-    int x_idx = static_cast<int>((x - map.info.origin.position.x) / res);
-    int y_idx = static_cast<int>((y - map.info.origin.position.y) / res);
+
+    int x_idx = static_cast<int>(std::round((x - map.info.origin.position.x) / res));
+    int y_idx = static_cast<int>(std::round((y - map.info.origin.position.y) / res));
+
     if (x_idx >= 0 && x_idx < width && y_idx >= 0 && y_idx < height)
     {
         int index = y_idx * width + x_idx;
@@ -159,7 +168,7 @@ int MapLoading::GetCellValue(double x, double y, double z_level) {
     }
     else
     {
-        return -1; // Coordinates out of bounds
+        return -1;
     }
 }
 
@@ -173,11 +182,59 @@ std::vector<double> MapLoading::GetAvailableZLevels() const
     return z_levels;
 }
 
+void MapLoading::PrintMap(double z_level)
+{   
+    auto logger = rclcpp::get_logger("MapLoading");
+    auto it = maps_.find(z_level);
+    if (it == maps_.end()) {
+        RCLCPP_ERROR(logger, "Map at z-level %f not found.", z_level);
+        return;
+    }
+
+    const nav_msgs::msg::OccupancyGrid &map = it->second;
+    int width = map.info.width;
+    int height = map.info.height;
+
+    RCLCPP_INFO(logger, "Map at z-level %f:", z_level);
+    
+
+    for (int y = height - 1; y >= 0; --y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            int index = y * width + x;
+            int8_t value = map.data[index];
+            char display_char;
+
+            if (value == 100)
+                display_char = '#'; // Occupied
+            else if (value == 0)
+                display_char = '.'; // Free
+            else
+                display_char = ' '; // Unknown
+
+            std::cout << display_char;
+        }
+        std::cout << std::endl;
+    }
+}
+
+void MapLoading::PrintAllMaps()
+{
+    for (const auto &pair : maps_)
+    {
+        double z_level = pair.first;
+        PrintMap(z_level);
+        std::cout << std::endl;
+    }
+}
+
 MissionParser::MissionParser()
 {
 }
 
 void MissionParser::ParsePoints(const std::string& filename) {
+    auto logger = rclcpp::get_logger("MissionParser");
     std::ifstream file(filename);
     std::string line;   
     while (std::getline(file, line)) {
@@ -198,10 +255,7 @@ void MissionParser::ParsePoints(const std::string& filename) {
             points_.emplace_back(x, y, z, precision, command);
         } 
         else {
-            // TODO: find out how to use a dummy logger
-            // rclcpp::Logger logger("");
-            // RCLCPP_ERROR(logger, "Failed to parse file");
-            std::cout << "Parsing failed" << std::endl;
+            RCLCPP_ERROR(logger, "Failed to parse file");
             return;
         }
     }
@@ -209,10 +263,7 @@ void MissionParser::ParsePoints(const std::string& filename) {
 }
 
 void MissionParser::DisplayPoints() {
-    for (const auto& point : points_) {
-        std::cout << "Point: (" << point.x_<< ", " << point.y_ << ", " << point.z_
-                  << "), Precision: " << point.precision_
-                  << ", Command: " << (point.command_.empty() ? "None" : point.command_)
-                  << std::endl;
+    for (const auto& point : points_) {        
+        RCLCPP_INFO(rclcpp::get_logger("MissionParser"), "Point: (%f, %f, %f), Precision: %s, Command: %s", point.x_, point.y_, point.z_, point.precision_.c_str(), point.command_.c_str());
     }
 }
