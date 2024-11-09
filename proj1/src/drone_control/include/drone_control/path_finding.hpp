@@ -102,6 +102,8 @@ class PathFinding : public rclcpp::Node
 public:
     PathFinding();
     void Run();
+    std::vector<astar::Node> SimplifyPath(const std::vector<astar::Node>& path, MapLoading& map);
+    bool IsLineOfSight(const astar::Node& start, const astar::Node& end, MapLoading& map); 
 private:
     MapLoading map_;
     MissionParser mission_;

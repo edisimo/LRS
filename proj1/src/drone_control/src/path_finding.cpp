@@ -38,9 +38,135 @@ void PathFinding::Run()
         }
 
         map_.PrintAllMaps(path);
+        path = SimplifyPath(path, map_);
+        map_.PrintAllMaps(path);
+
     } else {
         std::cout << "No path found between start and goal." << std::endl;
     }
+}
+
+std::vector<astar::Node> PathFinding::SimplifyPath(const std::vector<astar::Node>& path, MapLoading& map) {
+    if (path.empty()) return {};
+
+    std::vector<astar::Node> simplified_path;
+    simplified_path.push_back(path.front()); 
+
+    size_t current_index = 0;
+
+    while (current_index < path.size() - 1) {
+        size_t next_index = path.size() - 1; 
+
+        
+        while (next_index > current_index + 1) {
+            if (IsLineOfSight(path[current_index], path[next_index], map)) {
+                break; 
+            }
+            --next_index;
+        }
+
+        
+        simplified_path.push_back(path[next_index]);
+        current_index = next_index;
+    }
+
+    return simplified_path;
+}
+
+bool PathFinding::IsLineOfSight(const astar::Node& start, const astar::Node& end, MapLoading& map) {
+    auto logger = rclcpp::get_logger("IsLineOfSight");
+    int x0 = start.x_;
+    int y0 = start.y_;
+    int z0 = start.z_;
+    int x1 = end.x_;
+    int y1 = end.y_;
+    int z1 = end.z_;
+
+    int dx = abs(x1 - x0);
+    int dy = abs(y1 - y0);
+    int dz = abs(z1 - z0);
+
+    int xs = (x1 > x0) ? 1 : -1;
+    int ys = (y1 > y0) ? 1 : -1;
+    int zs = (z1 > z0) ? 1 : -1;
+
+    //X
+    if (dx >= dy && dx >= dz) {
+        int p1 = 2 * dy - dx;
+        int p2 = 2 * dz - dx;
+
+        while (x0 != x1) {
+            x0 += xs;
+
+            if (p1 >= 0) {
+                y0 += ys;
+                p1 -= 2 * dx;
+            }
+            if (p2 >= 0) {
+                z0 += zs;
+                p2 -= 2 * dx;
+            }
+
+            p1 += 2 * dy;
+            p2 += 2 * dz;
+
+            if (map.GetCellValue(x0 * MapLoading::GetResolution(), y0 * MapLoading::GetResolution(), map.GetAvailableZLevels()[z0]) == 100) {
+                return false;
+            }
+        }
+    }
+    //Y
+    else if (dy >= dx && dy >= dz) {
+        int p1 = 2 * dx - dy;
+        int p2 = 2 * dz - dy;
+
+        while (y0 != y1) {
+            y0 += ys;
+
+            if (p1 >= 0) {
+                x0 += xs;
+                p1 -= 2 * dy;
+            }
+            if (p2 >= 0) {
+                z0 += zs;
+                p2 -= 2 * dy;
+            }
+
+            p1 += 2 * dx;
+            p2 += 2 * dz;
+
+            if (map.GetCellValue(x0 * MapLoading::GetResolution(), y0 * MapLoading::GetResolution(), map.GetAvailableZLevels()[z0]) == 100) {
+                return false;
+            }
+        }
+    }
+    //Z
+    else {
+        int p1 = 2 * dy - dz;
+        int p2 = 2 * dx - dz;
+
+        while (z0 != z1) {
+            z0 += zs;
+
+            if (p1 >= 0) {
+                y0 += ys;
+                p1 -= 2 * dz;
+            }
+            if (p2 >= 0) {
+                x0 += xs;
+                p2 -= 2 * dz;
+            }
+
+            p1 += 2 * dy;
+            p2 += 2 * dx;
+
+            if (map.GetCellValue(x0 * MapLoading::GetResolution(), y0 * MapLoading::GetResolution(), map.GetAvailableZLevels()[z0]) == 100) {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 
@@ -263,9 +389,6 @@ void MapLoading::PrintMap(double z_level, const std::vector<astar::Node>& path)
     const nav_msgs::msg::OccupancyGrid &map = it->second;
     int width = map.info.width;
     int height = map.info.height;
-    double res = map.info.resolution;
-    double origin_x = map.info.origin.position.x;
-    double origin_y = map.info.origin.position.y;
 
     auto z_levels = GetAvailableZLevels();
 
