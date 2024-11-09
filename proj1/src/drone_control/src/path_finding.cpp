@@ -6,11 +6,11 @@ PathFinding::PathFinding() : Node("path_finding_node")
     mission_.ParsePoints("/home/lrs-ubuntu/LRS-FEI/mission_1_all.csv");
     mission_.DisplayPoints();
     // map_.LoadMap("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/dummy_map.txt", 0);
-    map_.LoadMap("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/dummy_map2.txt", 1);
-
+    // map_.LoadMap("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/dummy_map2.txt", 1);
+    map_.LoadAllMaps("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/");
     double query_x = 0;
     double query_y = 0;
-    int z_level = 1;
+    int z_level = 25;
     int cell_value = map_.GetCellValue(query_x, query_y, z_level);
     std::cout << "Cell value at (" << query_x << ", " << query_y << ") on z-level " << z_level << ": " << cell_value << std::endl;
     query_x = 9*0.05;
@@ -21,6 +21,35 @@ PathFinding::PathFinding() : Node("path_finding_node")
 
 MapLoading::MapLoading()
 {
+}
+
+void MapLoading::LoadAllMaps(const std::string &directory_path) {
+    namespace fs = std::filesystem;
+
+    try {
+        for (const auto& entry : fs::directory_iterator(directory_path)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".pgm") {
+                std::string filename = entry.path().filename().string();
+                
+                if (filename.rfind("map_", 0) == 0) {
+                    try {
+                        int height_cm = std::stoi(filename.substr(4, 3));
+                        int z_level = height_cm;
+
+                        if (LoadMap(entry.path().string(), z_level)) {
+                            std::cout << "Loaded map at z-level " << z_level << " from " << filename << std::endl;
+                        } else {
+                            std::cerr << "Failed to load map from " << filename << std::endl;
+                        }
+                    } catch (const std::exception&) {
+                        std::cerr << "Warning: Invalid filename format or load error: " << filename << std::endl;
+                    }
+                }
+            }
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "Filesystem error: " << e.what() << std::endl;
+    }
 }
 
 bool MapLoading::LoadMap(const std::string &map_name, int z_level) {
@@ -41,7 +70,7 @@ bool MapLoading::LoadMap(const std::string &map_name, int z_level) {
             map_data_[Key(x, height_-1-y, z_level)] = value;
         }
     }
-    PrintMap(z_level);
+    // PrintMap(z_level);
     std::cout << "Map loaded: " << width_ << "x" << height_ << " at z=" << z_level << std::endl;
     // InflateMap(5, z_level);
     // PrintMap(z_level);
