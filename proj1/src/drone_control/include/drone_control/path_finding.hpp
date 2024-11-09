@@ -1,6 +1,7 @@
 #ifndef PATH_FINDING_HPP
 #define PATH_FINDING_HPP
 #include <rclcpp/rclcpp.hpp>
+#include "nav_msgs/msg/occupancy_grid.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -11,25 +12,6 @@
 #include <filesystem>
 #include <iomanip>
 
-using Key = std::tuple<int, int, int>;
-
-struct KeyHash {
-    std::size_t operator()(const Key& k) const {
-        return std::hash<int>()(std::get<0>(k)) ^
-               (std::hash<int>()(std::get<1>(k)) << 1) ^
-               (std::hash<int>()(std::get<2>(k)) >> 1);
-    }
-};
-
-struct KeyEqual {
-    bool operator()(const Key& lhs, const Key& rhs) const {
-        return std::get<0>(lhs) == std::get<0>(rhs) &&
-               std::get<1>(lhs) == std::get<1>(rhs) &&
-               std::get<2>(lhs) == std::get<2>(rhs);
-    }
-};
-
-using Map3D = std::unordered_map<Key, int, KeyHash, KeyEqual>;
 
 
 class MapLoading
@@ -37,18 +19,13 @@ class MapLoading
 public:
     MapLoading();
     void LoadAllMaps(const std::string &directory_path);
-    bool LoadMap(const std::string &map_name, int z_level);
-    void PrintMap(int z_level);
-    int GetCellValue(double x, double y, int z_level);
+    bool LoadMapPGM(const std::string &map_name, nav_msgs::msg::OccupancyGrid &map, double z_level);
+    int GetCellValue(double x, double y, double z_level);
+    std::vector<double> GetAvailableZLevels() const;
 private: 
-    const float resolution_ = 0.05;
-    int width_;
-    int height_;
-    Map3D map_data_;
-    void InflateMap(double inflation_radius_cm, int z_level);
-    void InflateCell(Map3D &inflated_map, int x, int y, int z, int inflationRadiusPx);
-    std::pair<int, int> ConvertToMapIndices(double x, double y);
-
+    static constexpr float resolution_ = 0.05;
+    std::map<double, nav_msgs::msg::OccupancyGrid> maps_;
+    void InflateObstacles(nav_msgs::msg::OccupancyGrid &map, int inflation_radius_cm);
 };
 
 struct Point {

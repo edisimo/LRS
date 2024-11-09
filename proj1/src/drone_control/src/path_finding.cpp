@@ -8,15 +8,25 @@ PathFinding::PathFinding() : Node("path_finding_node")
     // map_.LoadMap("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/dummy_map.txt", 0);
     // map_.LoadMap("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/dummy_map2.txt", 1);
     map_.LoadAllMaps("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/");
-    double query_x = 0;
-    double query_y = 0;
-    int z_level = 25;
-    int cell_value = map_.GetCellValue(query_x, query_y, z_level);
-    std::cout << "Cell value at (" << query_x << ", " << query_y << ") on z-level " << z_level << ": " << cell_value << std::endl;
-    query_x = 9*0.05;
-    query_y = 9*0.05;
-    cell_value = map_.GetCellValue(query_x, query_y, z_level);
-    std::cout << "Cell value at (" << query_x << ", " << query_y << ") on z-level " << z_level << ": " << cell_value << std::endl;
+
+    // Example usage: Get cell value at specific coordinates and z-level
+    double x = 1.0; // x coordinate in meters
+    double y = 2.0; // y coordinate in meters
+    double z_level = 25.5; // z-level in meters or your unit
+
+    int cell_value = map_.GetCellValue(x, y, z_level);
+    if (cell_value != -1)
+    {
+        RCLCPP_INFO(this->get_logger(), "Cell value at (%f, %f, %f): %d", x, y, z_level, cell_value);
+    }
+
+    // Get list of available z-levels
+    std::vector<double> z_levels = map_.GetAvailableZLevels();
+    RCLCPP_INFO(this->get_logger(), "Available z-levels:");
+    for (double z : z_levels)
+    {
+        RCLCPP_INFO(this->get_logger(), "%f", z);
+    }
 }
 
 MapLoading::MapLoading()
@@ -25,115 +35,142 @@ MapLoading::MapLoading()
 
 void MapLoading::LoadAllMaps(const std::string &directory_path) {
     namespace fs = std::filesystem;
-
-    try {
-        for (const auto& entry : fs::directory_iterator(directory_path)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".pgm") {
-                std::string filename = entry.path().filename().string();
-                
-                if (filename.rfind("map_", 0) == 0) {
-                    try {
-                        int height_cm = std::stoi(filename.substr(4, 3));
-                        int z_level = height_cm;
-
-                        if (LoadMap(entry.path().string(), z_level)) {
-                            std::cout << "Loaded map at z-level " << z_level << " from " << filename << std::endl;
-                        } else {
-                            std::cerr << "Failed to load map from " << filename << std::endl;
-                        }
-                    } catch (const std::exception&) {
-                        std::cerr << "Warning: Invalid filename format or load error: " << filename << std::endl;
-                    }
-                }
-            }
+    for (const auto& entry : fs::directory_iterator(directory_path))
+    {
+        if (entry.path().extension() == ".pgm")
+        {
+            std::string filename = entry.path().filename().string();
+            size_t pos1 = filename.find("map_");
+            size_t pos2 = filename.find(".pgm");
+            std::string z_str = filename.substr(pos1 + 4, pos2 - (pos1 + 4));
+            double z_level_cm = std::stod(z_str);
+            double z_level_m = z_level_cm / 100.0;
+            nav_msgs::msg::OccupancyGrid map;
+            LoadMapPGM(entry.path().string(), map, z_level_m);
+            maps_[z_level_m] = map;
         }
-    } catch (const fs::filesystem_error& e) {
-        std::cerr << "Filesystem error: " << e.what() << std::endl;
     }
 }
 
-bool MapLoading::LoadMap(const std::string &map_name, int z_level) {
-    std::ifstream infile(map_name);
-    if (!infile) {
-        std::cerr << "Error: Cannot open map file.\n";
-        return false;
-    }
-
+bool MapLoading::LoadMapPGM(const std::string &map_name, nav_msgs::msg::OccupancyGrid &map, double z_level) {
+    std::ifstream infile(map_name, std::ios::binary);
     std::string line;
-    std::getline(infile, line); 
-    infile >> width_ >> height_;
+    int width, height, max_value;
+    double resolution = resolution_;
+    std::vector<double> origin = {0.0, 0.0, z_level};
 
-    for (int y = 0; y < height_; ++y) {
-        for (int x = 0; x < width_; ++x) {
-            int value;
-            infile >> value;
-            map_data_[Key(x, height_-1-y, z_level)] = value;
+    std::getline(infile, line);
+    bool is_binary = (line == "P5");
+    while (std::getline(infile, line)) {
+        if (line[0] != '#') break;
+    }
+    std::istringstream iss(line);
+    iss >> width >> height;
+    infile >> max_value;
+    infile.get();
+
+    map.info.resolution = resolution;
+    map.info.width = width;
+    map.info.height = height;
+    map.info.origin.position.x = origin[0];
+    map.info.origin.position.y = origin[1];
+    map.info.origin.position.z = origin[2];
+    map.info.origin.orientation.w = 1.0;
+    map.data.resize(width * height);
+
+    if (is_binary)
+    {
+        std::vector<uint8_t> pgm_data(width * height);
+        infile.read(reinterpret_cast<char*>(pgm_data.data()), width * height);
+        for (int y = 0; y < height; ++y)
+        {
+            int inverted_y = height - 1 - y;
+            for (int x = 0; x < width; ++x)
+            {
+                size_t pgm_index = y * width + x;
+                size_t map_index = inverted_y * width + x;
+                uint8_t value = pgm_data[pgm_index];
+                map.data[map_index] = (value == 0) ? 100 : (value == max_value) ? 0 : -1;
+            }
         }
     }
-    // PrintMap(z_level);
-    std::cout << "Map loaded: " << width_ << "x" << height_ << " at z=" << z_level << std::endl;
-    // InflateMap(5, z_level);
-    // PrintMap(z_level);
+    else
+    {
+        for (int y = 0; y < height; ++y)
+        {
+            int inverted_y = height - 1 - y;
+            for (int x = 0; x < width; ++x)
+            {
+                int value;
+                infile >> value;
+                size_t map_index = inverted_y * width + x;
+                map.data[map_index] = (value == 0) ? 100 : (value == max_value) ? 0 : -1;
+            }
+        }
+    }
+    //TODO: constant inflation radius
+    double inflation_radius_cm = 15.0;
+    InflateObstacles(map, inflation_radius_cm);
     return true;
 }
 
-void MapLoading::PrintMap(int z_level) {
-    for (int y = 0; y < height_; ++y) {
-        for (int x = 0; x < width_; ++x) {
-            Key key = Key(x, y, z_level);
-            int value = map_data_[key];
-            std::cout << value << "";        
+void MapLoading::InflateObstacles(nav_msgs::msg::OccupancyGrid &map, int inflation_radius_cm) {
+    int width = map.info.width;
+    int height = map.info.height;
+    int radius_cells = static_cast<int>(std::ceil(inflation_radius_cm / (map.info.resolution * 100.0)));
+    std::vector<int8_t> inflated_map = map.data;
+
+    for (int y = 0; y < height; ++y)
+        for (int x = 0; x < width; ++x)
+            if (map.data[y * width + x] == 100)
+                for (int dy = -radius_cells; dy <= radius_cells; ++dy)
+                    for (int dx = -radius_cells; dx <= radius_cells; ++dx)
+                    {
+                        int nx = x + dx, ny = y + dy;
+                        if (nx >= 0 && nx < width && ny >= 0 && ny < height)
+                            inflated_map[ny * width + nx] = 100;
+                    }
+
+    map.data = std::move(inflated_map);
+}
+
+int MapLoading::GetCellValue(double x, double y, double z_level) {
+    auto it = maps_.find(z_level);
+    if (it == maps_.end()) {
+        if (maps_.empty()) return -1;
+        auto lower = maps_.lower_bound(z_level);
+        if (lower == maps_.end()) {
+            lower = std::prev(lower);
         }
-        std::cout << std::endl;
+        z_level = lower->first;
+        it = lower;
+    }
+
+    const nav_msgs::msg::OccupancyGrid &map = it->second;
+    int width = map.info.width;
+    int height = map.info.height;
+    double res = map.info.resolution;
+    int x_idx = static_cast<int>((x - map.info.origin.position.x) / res);
+    int y_idx = static_cast<int>((y - map.info.origin.position.y) / res);
+    if (x_idx >= 0 && x_idx < width && y_idx >= 0 && y_idx < height)
+    {
+        int index = y_idx * width + x_idx;
+        return map.data[index];
+    }
+    else
+    {
+        return -1; // Coordinates out of bounds
     }
 }
 
-void MapLoading::InflateCell(Map3D &inflated_map, int x, int y, int z, int inflationRadiusPx) {
-    for (int dy = -inflationRadiusPx; dy <= inflationRadiusPx; ++dy) {
-            for (int dx = -inflationRadiusPx; dx <= inflationRadiusPx; ++dx) {
-                int newX = x + dx;
-                int newY = y + dy;
-                if (newX >= 0 && newX < width_ && newY >= 0 && newY < height_) {
-                    Key key = Key(newX, newY, z);
-                    inflated_map[key] = 0;
-                }
-            }
-        }
-}
-
-void MapLoading::InflateMap(double inflation_radius_cm, int z_level) {
-    int inflation_radius_px = std::ceil(inflation_radius_cm / (resolution_ * 100));
-
-    Map3D inflated_map = map_data_;
-
-    for (int y = 0; y < height_; ++y) {
-        for (int x = 0; x < width_; ++x) {
-            Key key = Key(x, y, z_level);
-            if (map_data_[key] == 0) { 
-                InflateCell(inflated_map, x, y, z_level, inflation_radius_px);            }
-        }
+std::vector<double> MapLoading::GetAvailableZLevels() const
+{
+    std::vector<double> z_levels;
+    for (const auto& pair : maps_) {
+        z_levels.push_back(pair.first);
     }
-
-    map_data_ = inflated_map;
-    std::cout << "Map inflated by " << inflation_radius_cm << " cm at z=" << z_level << "." << std::endl; 
-}
-
-std::pair<int, int> MapLoading::ConvertToMapIndices(double x, double y) {
-    int x_index = static_cast<int>(std::round(x / resolution_));
-    int y_index = static_cast<int>(std::round(y / resolution_));
-    return {x_index, y_index};
-}
-
-int MapLoading::GetCellValue(double x, double y, int z_level) {
-    auto [x_index, y_index] = ConvertToMapIndices(x, y);
-    Key key = Key(x_index, y_index, z_level);
-    
-    if (map_data_.find(key) != map_data_.end()) {
-        return map_data_[key];
-    } else {
-        std::cerr << "Error: Coordinate (" << x << ", " << y << ") is out of map bounds." << std::endl;
-        return -1; 
-    }
+    std::sort(z_levels.begin(), z_levels.end());
+    return z_levels;
 }
 
 MissionParser::MissionParser()
