@@ -706,3 +706,15 @@ std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, doubl
 
     return {};
 }
+
+int MapLoading::GetWidth() const {
+    if (maps_.empty())
+        return 0;
+    return maps_.begin()->second.info.width;
+}
+
+int MapLoading::GetHeight() const {
+    if (maps_.empty())
+        return 0;
+    return maps_.begin()->second.info.height;
+}

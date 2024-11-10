@@ -86,6 +86,8 @@ public:
     void PrintMap(double z_level, const std::vector<astar::Node>& path);
     void PrintAllMaps(const std::vector<astar::Node>& path);
     int GetZIndex(double z) const;
+    int GetWidth() const;
+    int GetHeight() const;
 private: 
     static constexpr double resolution_ = 0.05;
     static constexpr float inflation_radius_cm_ = 25.0;
