@@ -34,22 +34,11 @@ namespace astar {
         Node(int x, int y, int z, double g, double h, std::shared_ptr<Node> parent)
             : x_(x), y_(y), z_(z), g_(g), h_(h), f_(g + h), parent_(parent) {}
 
-        bool operator>(const Node& other) const {
-            return f_ > other.f_;
-        }
-
         bool operator<(const Node& other) const {
             return f_ < other.f_;
         }
-
-        bool operator>=(const Node& other) const {
-            return f_ >= other.f_;
-        }
-        bool operator<=(const Node& other) const {
-            return f_ <= other.f_;
-        }
-        bool operator==(const Node& other) const {
-            return f_ == other.f_;
+        bool operator>(const Node& other) const {
+            return f_ > other.f_;
         }
 };
 
@@ -80,7 +69,7 @@ public:
     bool SaveMapPGM(const std::string &map_name, const nav_msgs::msg::OccupancyGrid &map);
     int GetCellValue(double x, double y, double z_level);
     std::vector<double> GetAvailableZLevels() const;
-    constexpr static double GetResolution() { return resolution_; }
+    constexpr static double GetResolution() { return RESOLUTION_; }
     void PrintAllMaps();
     void PrintMap(double z_level);
     void PrintMap(double z_level, const std::vector<astar::Node>& path);
@@ -89,8 +78,8 @@ public:
     int GetWidth() const;
     int GetHeight() const;
 private: 
-    static constexpr double resolution_ = 0.05;
-    static constexpr float inflation_radius_cm_ = 25.0;
+    static constexpr double RESOLUTION_ = 0.05;
+    static constexpr float INFLATION_RADIUS_CM_ = 25.0;
     std::map<double, nav_msgs::msg::OccupancyGrid> maps_;
     void InflateObstacles(nav_msgs::msg::OccupancyGrid &map, int inflation_radius_cm);
 };
@@ -131,6 +120,8 @@ public:
                                double goal_x, double goal_y, double goal_z);
 private:
     MapLoading& map_;
+    static constexpr float HEURISTIC_WEIGHT_ = 5.0;
+    static constexpr float CUMULATIVE_WEIGHT_ = 1.0;
 };
 
 class PathFinding : public rclcpp::Node

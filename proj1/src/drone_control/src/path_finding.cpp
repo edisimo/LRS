@@ -268,7 +268,7 @@ bool MapLoading::LoadMapPGM(const std::string &map_name, nav_msgs::msg::Occupanc
     std::ifstream infile(map_name, std::ios::binary);
     std::string line;
     int width, height, max_value;
-    double resolution = resolution_;
+    double resolution = RESOLUTION_;
     std::vector<double> origin = {0.0, 0.0, z_level};
 
     std::getline(infile, line);
@@ -320,8 +320,8 @@ bool MapLoading::LoadMapPGM(const std::string &map_name, nav_msgs::msg::Occupanc
             }
         }
     }
-    InflateObstacles(map, inflation_radius_cm_);
-    SaveMapPGM(map_name + "_inflated.pgm", map);
+    InflateObstacles(map, INFLATION_RADIUS_CM_);
+    // SaveMapPGM(map_name + "_inflated.pgm", map);
     return true;
 }
 
@@ -341,8 +341,8 @@ bool MapLoading::SaveMapPGM(const std::string &map_name, const nav_msgs::msg::Oc
     // Write data in binary format
     std::vector<uint8_t> pgm_data(map.info.width * map.info.height, 255);  // Default to 255 (free space)
 
-    for (int y = 0; y < map.info.height; ++y) {
-        for (int x = 0; x < map.info.width; ++x) {
+    for (auto y = 0; y < map.info.height; ++y) {
+        for (auto x = 0; x < map.info.width; ++x) {
             size_t index = y * map.info.width + x;
             // Map data interpretation:
             // 100 means occupied (black in the PGM file), 
@@ -612,7 +612,7 @@ std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, doubl
                                     double goal_x, double goal_y, double goal_z)
 {
     auto logger = rclcpp::get_logger("AStar3D");
-
+    int max_iterations = 100000;
     const double resolution = MapLoading::GetResolution();
 
     int start_x_idx = static_cast<int>(std::round(start_x / resolution));
@@ -627,18 +627,45 @@ std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, doubl
         RCLCPP_ERROR(logger, "Invalid start or goal z-level.");
         return {};
     }
+
+    if (start_x_idx < 0 || start_y_idx < 0 || goal_x_idx < 0 || goal_y_idx < 0 
+                        || start_x_idx >= map_.GetWidth() || start_y_idx >= map_.GetHeight() 
+                        || goal_x_idx >= map_.GetWidth() || goal_y_idx >= map_.GetHeight()) {
+        RCLCPP_ERROR(logger, "Start or goal point out of bounds.");
+        return {};
+    }
+
     auto z_levels = map_.GetAvailableZLevels();
+
+    int start_cell_value = map_.GetCellValue(start_x, start_y, start_z);
+    int goal_cell_value = map_.GetCellValue(goal_x, goal_y, goal_z);
+    if (start_cell_value == 100 || start_cell_value == -1) {
+        RCLCPP_ERROR(logger, "Start point cell value: %d", start_cell_value);
+        RCLCPP_ERROR(logger, "Start point indices: (%d, %d, %d)", start_x_idx, start_y_idx, start_z_idx);
+        RCLCPP_ERROR(logger, "Start point real values: (%f, %f, %f)", start_x, start_y, start_z);
+        RCLCPP_ERROR(logger, "Start point is in an occupied or unknown cell.");
+        return {};
+    }
+    if (goal_cell_value == 100 || goal_cell_value == -1) {
+        RCLCPP_ERROR(logger, "Goal point cell value: %d", goal_cell_value);
+        RCLCPP_ERROR(logger, "Goal point indices: (%d, %d, %d)", goal_x_idx, goal_y_idx, goal_z_idx);
+        RCLCPP_ERROR(logger, "Goal point real values: (%f, %f, %f)", goal_x, goal_y, goal_z);
+        RCLCPP_ERROR(logger, "Goal point is in an occupied or unknown cell.");
+        return {};
+    }
+
 
     std::priority_queue<astar::Node, std::vector<astar::Node>, std::greater<astar::Node>> open_list;
     std::unordered_set<std::tuple<int, int, int>, HashFunc> closed_set;
     
     RCLCPP_INFO(logger, "Finding path from (%f, %f, %f) to (%f, %f, %f)", start_x, start_y, start_z, goal_x, goal_y, goal_z);
     auto start_node = std::make_shared<astar::Node>(start_x_idx, start_y_idx, start_z_idx, 0.0, 0.0, nullptr);
-    start_node->h_ = std::sqrt(
-        std::pow((goal_x_idx - start_x_idx) * resolution, 2) +
-        std::pow((goal_y_idx - start_y_idx) * resolution, 2) +
-        std::pow(z_levels[goal_z_idx] - z_levels[start_z_idx], 2)
+    start_node->h_ = HEURISTIC_WEIGHT_*std::sqrt(
+        std::pow((goal_x_idx - start_x_idx) * resolution*100.0, 2) +
+        std::pow((goal_y_idx - start_y_idx) * resolution*100.0, 2) +
+        std::pow(z_levels[goal_z_idx]*100.0 - z_levels[start_z_idx]*100.0, 2)
     );
+
     start_node->f_ = start_node->g_ + start_node->h_;
     open_list.push(*start_node);
 
@@ -650,11 +677,19 @@ std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, doubl
                     directions.emplace_back(dx, dy, dz);
 
     RCLCPP_INFO(logger, "Resolution: %f", resolution);
-
-    while (!open_list.empty() && rclcpp::ok()) {
+    auto last_node = std::make_shared<astar::Node>(-1, -1, -1, 0.0, 0.0, nullptr);
+    while (!open_list.empty() && rclcpp::ok() && max_iterations> 0) {
         astar::Node current = open_list.top();
         open_list.pop();
-        std::cout << "Open list size " << open_list.size() << std::endl;
+
+        if (current.x_ == last_node->x_ && current.y_ == last_node->y_ && current.z_ == last_node->z_) {
+            continue;
+        }
+        last_node = std::make_shared<astar::Node>(current);
+        std::cout << "Current node: " << current.x_ << " " << current.y_ << " " << current.z_ << std::endl;
+        std::cout << "Goal node: " << goal_x_idx << " " << goal_y_idx << " " << goal_z_idx << std::endl;
+        std::cout << "F value: " << current.f_ << " G value: " << current.g_ << " H value: " << current.h_ << std::endl;
+        //check if it is in the closed set
 
         if (current.x_ == goal_x_idx && current.y_ == goal_y_idx && current.z_ == goal_z_idx) {
             RCLCPP_INFO(logger, "Goal reached.");
@@ -669,13 +704,14 @@ std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, doubl
         }
 
         closed_set.insert(std::make_tuple(current.x_, current.y_, current.z_));
-
+        max_iterations--;
         for (const auto& dir : directions) {
             int nx = current.x_ + std::get<0>(dir);
             int ny = current.y_ + std::get<1>(dir);
             int nz = current.z_ + std::get<2>(dir);
 
             if (nz < 0 || nz >= static_cast<int>(z_levels.size())) continue;
+            if (nx < 0 || nx >= map_.GetWidth() || ny < 0 || ny >= map_.GetHeight()) continue;
 
             auto neighbor_key = std::make_tuple(nx, ny, nz);
             if (closed_set.find(neighbor_key) != closed_set.end()) continue;
@@ -687,23 +723,27 @@ std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, doubl
             int cell_value = map_.GetCellValue(wx, wy, wz);
             if (cell_value == 100 || cell_value == -1) continue; 
 
-            double movement_cost = std::sqrt(
-                std::pow(std::get<0>(dir) * resolution, 2) +
-                std::pow(std::get<1>(dir) * resolution, 2) +
-                std::pow(z_levels[nz] - z_levels[current.z_], 2)
-            );
-            double tentative_g = current.g_ + movement_cost;
-            double h = std::sqrt(
-                std::pow((goal_x_idx - nx) * resolution, 2) +
-                std::pow((goal_y_idx - ny) * resolution, 2) +
-                std::pow(z_levels[goal_z_idx] - z_levels[nz], 2)
+            int dx = std::get<0>(dir);
+            int dy = std::get<1>(dir);
+            
+            double horizontal_cost = std::sqrt(std::pow(dx * resolution*100.0, 2) + std::pow(dy * resolution*100.0, 2));
+            double vertical_cost = std::abs(z_levels[nz]*100.0 - z_levels[current.z_]*100.0);
+            double movement_cost = std::sqrt(horizontal_cost * horizontal_cost + std::pow(vertical_cost, 2));
+            double tentative_g = current.g_ + CUMULATIVE_WEIGHT_*movement_cost;
+            double h = HEURISTIC_WEIGHT_*std::sqrt(
+                std::pow((goal_x_idx - nx) * resolution*100.0, 2) +
+                std::pow((goal_y_idx - ny) * resolution*100.0, 2) +
+                std::pow(z_levels[goal_z_idx]*100.0 - z_levels[nz]*100.0, 2)
             );
 
-            auto neighbor = std::make_shared<astar::Node>(nx, ny, nz, tentative_g, h, std::make_shared<astar::Node>(current));
+            auto neighbor = std::make_shared<astar::Node>(nx, ny, nz, tentative_g, h, std::make_shared<astar::Node>(current));        
             open_list.push(*neighbor);
+            
         }
     }
-
+    if (max_iterations <= 0) {
+        RCLCPP_ERROR(logger, "Max iterations reached no solution found.");
+    }
     return {};
 }
 
