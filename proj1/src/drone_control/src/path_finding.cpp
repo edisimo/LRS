@@ -7,7 +7,6 @@ PathFinding::PathFinding() : Node("path_finding_node"), astar_(map_)
     // mission_.ParsePoints("/home/lrs-ubuntu/LRS/TEST/test_points.csv");
     mission_.DisplayPoints();
     map_.LoadAllMaps("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/");
-    //print all available z levels
     auto z_levels = map_.GetAvailableZLevels();
     for (auto i : z_levels)
     {
@@ -79,10 +78,19 @@ void PathFinding::FindTrajectory()
         std::vector<astar::Node> path = astar_.FindPath(start.x_, start.y_, start.z_,
                                 goal.x_, goal.y_, goal.z_);
         if (!path.empty()) {
+            //if the first point is x y z -1 do something
+            if(path.front().x_ == -1 && path.front().y_ == -1 && path.front().z_ == -1){
+                points.erase(points.begin()+1);
+                std::cout << "Goal point unreachable" << std::endl;
+                continue;
+            }   
             std::cout << "Path found:" << std::endl;
         } 
         else {
             std::cout << "No path found between start and goal." << std::endl;
+            points.erase(points.begin());
+            i++;
+            continue;
         }
         path = SimplifyPath(path, map_);
         RCLCPP_INFO(this->get_logger(), "Path found with %lu nodes.", path.size());
@@ -326,39 +334,30 @@ bool MapLoading::LoadMapPGM(const std::string &map_name, nav_msgs::msg::Occupanc
 }
 
 bool MapLoading::SaveMapPGM(const std::string &map_name, const nav_msgs::msg::OccupancyGrid &map) {
-    // Open file for writing
     std::ofstream outfile(map_name, std::ios::binary);
     if (!outfile.is_open()) {
         return false;
     }
 
-    // PGM header
-    outfile << "P5\n";  // Binary format (P5)
+    outfile << "P5\n";  
     outfile << "# Created by MapLoading::SaveMapPGM\n";
     outfile << map.info.width << " " << map.info.height << "\n";
-    outfile << "255\n";  // Max value (255 for binary PGM)
+    outfile << "255\n"; 
 
-    // Write data in binary format
-    std::vector<uint8_t> pgm_data(map.info.width * map.info.height, 255);  // Default to 255 (free space)
-
-    for (auto y = 0; y < map.info.height; ++y) {
-        for (auto x = 0; x < map.info.width; ++x) {
+    std::vector<uint8_t> pgm_data(map.info.width * map.info.height, 255); 
+    for (unsigned int y = 0; y < map.info.height; ++y) {
+        for (unsigned int x = 0; x < map.info.width; ++x) {
             size_t index = y * map.info.width + x;
-            // Map data interpretation:
-            // 100 means occupied (black in the PGM file), 
-            // 0 means free space (white in the PGM file), 
-            // -1 means unknown (255 in the PGM file).
             if (map.data[index] == 100) {
                 pgm_data[index] = 0;  // Occupied
             } else if (map.data[index] == 0) {
                 pgm_data[index] = 255;  // Free space
             } else {
-                pgm_data[index] = 127;  // Unknown area (mid-grey)
+                pgm_data[index] = 127;  // Unknown
             }
         }
     }
 
-    // Write out the data in binary form
     outfile.write(reinterpret_cast<char*>(pgm_data.data()), pgm_data.size());
 
     return true;
@@ -388,7 +387,6 @@ int MapLoading::GetCellValue(double x, double y, double z_level) {
     auto logger = rclcpp::get_logger("MapLoading");
     auto available_z_levels = GetAvailableZLevels();
     std::sort(available_z_levels.begin(), available_z_levels.end());
-    //print levels
     // for (auto i : available_z_levels)
     // {
     //     std::cout << i << std::endl;
@@ -651,7 +649,7 @@ std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, doubl
         RCLCPP_ERROR(logger, "Goal point indices: (%d, %d, %d)", goal_x_idx, goal_y_idx, goal_z_idx);
         RCLCPP_ERROR(logger, "Goal point real values: (%f, %f, %f)", goal_x, goal_y, goal_z);
         RCLCPP_ERROR(logger, "Goal point is in an occupied or unknown cell.");
-        return {};
+        return std::vector<astar::Node>{astar::Node{-1, -1, -1, 0.0, 0.0, nullptr}};
     }
 
 
@@ -686,10 +684,9 @@ std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, doubl
             continue;
         }
         last_node = std::make_shared<astar::Node>(current);
-        std::cout << "Current node: " << current.x_ << " " << current.y_ << " " << current.z_ << std::endl;
-        std::cout << "Goal node: " << goal_x_idx << " " << goal_y_idx << " " << goal_z_idx << std::endl;
-        std::cout << "F value: " << current.f_ << " G value: " << current.g_ << " H value: " << current.h_ << std::endl;
-        //check if it is in the closed set
+        // std::cout << "Current node: " << current.x_ << " " << current.y_ << " " << current.z_ << std::endl;
+        // std::cout << "Goal node: " << goal_x_idx << " " << goal_y_idx << " " << goal_z_idx << std::endl;
+        // std::cout << "F value: " << current.f_ << " G value: " << current.g_ << " H value: " << current.h_ << std::endl;
 
         if (current.x_ == goal_x_idx && current.y_ == goal_y_idx && current.z_ == goal_z_idx) {
             RCLCPP_INFO(logger, "Goal reached.");

@@ -2,7 +2,6 @@
 
 DroneControl::DroneControl() : Node("drone_control_node")
 {
-    // Set up ROS publishers, subscribers and service clients
     current_state_.mode = "NONE";
     state_sub_ = this->create_subscription<mavros_msgs::msg::State>(
         "mavros/state", 10, std::bind(&DroneControl::StateCallback, this, std::placeholders::_1));
@@ -18,7 +17,6 @@ DroneControl::DroneControl() : Node("drone_control_node")
     local_pos_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
             "/mavros/local_position/pose", qos, std::bind(&DroneControl::LocalPosCallback, this, std::placeholders::_1));
     path_service_ = this->create_service<drone_control::srv::CustomPath>("custom_path", std::bind(&DroneControl::CustomPathCallback, this, std::placeholders::_1, std::placeholders::_2));
-    // Wait for MAVROS SITL connection
     while (rclcpp::ok() && !current_state_.connected)
     {
         rclcpp::spin_some(this->get_node_base_interface());
@@ -29,7 +27,6 @@ DroneControl::DroneControl() : Node("drone_control_node")
         rclcpp::spin_some(this->get_node_base_interface());
         std::this_thread::sleep_for(100ms);
     }
-    // Execute the mission
     if (received_mission_)
     {
         for (const auto &point : mission_->points)
@@ -66,8 +63,6 @@ void DroneControl::LocalPosCallback(const geometry_msgs::msg::PoseStamped::Share
     drone_z_global_ = drone_z_local_;
     drone_yaw_global_ = LocalToGlobalYaw(drone_yaw_local_);
 
-    std::cout << "Local: " << drone_x_local_ << ", " << drone_y_local_ << ", " << drone_z_local_ << ", " << drone_yaw_local_ << std::endl;
-    std::cout << "Global: " << drone_x_global_ << ", " << drone_y_global_ << ", " << drone_z_global_ << ", " << drone_yaw_global_ << std::endl;
 }
 
 void DroneControl::StateCallback(const mavros_msgs::msg::State::SharedPtr msg)
@@ -126,7 +121,7 @@ void DroneControl::ArmDrone(bool arm_flag)
 {
     if (current_state_.mode != "GUIDED")
     {
-        RCLCPP_ERROR(this->get_logger(), "Vehicle not in GUIDED mode. Cannot arm.");
+        RCLCPP_WARN(this->get_logger(), "Vehicle not in GUIDED mode. Cannot arm. Trying to change mode...");
         ChangeMode("GUIDED");
     }
 
@@ -186,11 +181,9 @@ void DroneControl::ArmDrone(bool arm_flag)
 }
 
 void DroneControl::TakeOff(float altitude, float threshold) {
-    //TODO: Optional parameter for yaw
-
     if (current_state_.armed == false)
     {
-        RCLCPP_ERROR(this->get_logger(), "Vehicle not armed. Cannot take off.");
+        RCLCPP_WARN(this->get_logger(), "Vehicle not armed. Cannot take off. Arming....");
         ArmDrone(true);
     }
 
@@ -198,7 +191,6 @@ void DroneControl::TakeOff(float altitude, float threshold) {
     takeoff_request.min_pitch = 0;
     takeoff_request.yaw = drone_yaw_local_;
     takeoff_request.altitude = altitude;
-    //print yaw and altitude
     RCLCPP_INFO(this->get_logger(), "Yaw: %f, Altitude: %f", drone_yaw_local_, altitude);
     while (!takeoff_client_->wait_for_service(1s))
     {
@@ -249,7 +241,6 @@ void DroneControl::TakeOff(float altitude, float threshold) {
 
 void DroneControl::Land() {
     //TODO: Check if the drone is in the air before landing
-    //TODO: Verify that the drone has landed
     mavros_msgs::srv::CommandTOL::Request land_request;
     land_request.yaw = drone_yaw_local_;
     while (!land_client_->wait_for_service(1s))
@@ -307,13 +298,12 @@ void DroneControl::LandTakeoff(double altitude, float threshold) {
 }
 
 void DroneControl::GoToPoint(float x, float y, float z, float yaw, float threshold) {
-    //TODO: Make sure that the drone is in the air actually
     geometry_msgs::msg::PoseStamped pose;
     pose.pose.position.x = x;
     pose.pose.position.y = y;
     pose.pose.position.z = z;
     pose.pose.orientation = tf2::toMsg(tf2::Quaternion(tf2::Vector3(0, 0, 1), LocalToGlobalYaw(yaw*M_PI/180.0)));
-    RCLCPP_INFO(this->get_logger(), "Going to point: %f, %f, %f, %f", x, y, z, yaw); 
+    RCLCPP_INFO(this->get_logger(), "Going to point: %f, %f, %f, %f", LocalToGlobalX(y), LocalToGlobalY(x), z, yaw*M_PI/180.0); 
 
     auto timer = this->create_wall_timer(
         std::chrono::milliseconds(100),
@@ -325,14 +315,16 @@ void DroneControl::GoToPoint(float x, float y, float z, float yaw, float thresho
     
     //TODO: Check the yaw
     bool is_within_threshold = false;
-    while(rclcpp::ok() && !is_within_threshold) {
+    bool is_yaw_within_threshold = false;
+    while(rclcpp::ok() && !is_within_threshold && !is_yaw_within_threshold) {
         rclcpp::spin_some(this->get_node_base_interface());
         float dx = x - drone_x_local_;
         float dy = y - drone_y_local_;
         float dz = z - drone_z_local_;
         float distance = std::sqrt(dx*dx + dy*dy + dz*dz);
-        // RCLCPP_INFO(this->get_logger(), "Distance: %f", distance);
+        float dyaw = fabs(yaw*M_PI/180.0 - drone_yaw_global_);
         is_within_threshold = distance <= threshold;
+        is_yaw_within_threshold = dyaw <= threshold;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
@@ -355,6 +347,7 @@ void DroneControl::GoToPointGlobal(float x, float y, float z, std::string precis
         TakeOff(z, precision_threshold);
     }
     GoToPoint(GlobalToLocalX(y), GlobalToLocalY(x), z, 180.0*GlobalToLocalYaw(yaw)/M_PI, precision_threshold);
+    RCLCPP_INFO(this->get_logger(), "Drone at point (GLOBAL): %f, %f, %f, %f", drone_x_global_, drone_y_global_, drone_z_global_, drone_yaw_global_*180.0/M_PI);
     if(command == "LAND") {
         Land();
     }

@@ -79,7 +79,7 @@ public:
     int GetHeight() const;
 private: 
     static constexpr double RESOLUTION_ = 0.05;
-    static constexpr float INFLATION_RADIUS_CM_ = 25.0;
+    static constexpr float INFLATION_RADIUS_CM_ = 30.0;
     std::map<double, nav_msgs::msg::OccupancyGrid> maps_;
     void InflateObstacles(nav_msgs::msg::OccupancyGrid &map, int inflation_radius_cm);
 };
@@ -120,7 +120,7 @@ public:
                                double goal_x, double goal_y, double goal_z);
 private:
     MapLoading& map_;
-    static constexpr float HEURISTIC_WEIGHT_ = 5.0;
+    static constexpr float HEURISTIC_WEIGHT_ = 7.0;
     static constexpr float CUMULATIVE_WEIGHT_ = 1.0;
 };
 
