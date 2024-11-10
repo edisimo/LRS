@@ -37,17 +37,39 @@ namespace astar {
         bool operator>(const Node& other) const {
             return f_ > other.f_;
         }
+
+        bool operator<(const Node& other) const {
+            return f_ < other.f_;
+        }
+
+        bool operator>=(const Node& other) const {
+            return f_ >= other.f_;
+        }
+        bool operator<=(const Node& other) const {
+            return f_ <= other.f_;
+        }
+        bool operator==(const Node& other) const {
+            return f_ == other.f_;
+        }
 };
 
 }
 
+// struct HashFunc {
+//     size_t operator()(const std::tuple<int, int, int>& key) const {
+//         auto [x, y, z] = key;
+//         return std::hash<int>()(x) ^ std::hash<int>()(y) << 1 ^ std::hash<int>()(z) << 2;
+//     }
+// };
+
 struct HashFunc {
-    size_t operator()(const std::tuple<int, int, int>& key) const {
-        auto [x, y, z] = key;
-        return std::hash<int>()(x) ^ std::hash<int>()(y) << 1 ^ std::hash<int>()(z) << 2;
+    std::size_t operator()(const std::tuple<int, int, int>& key) const {
+        int x = std::get<0>(key);
+        int y = std::get<1>(key);
+        int z = std::get<2>(key);
+        return ((std::hash<int>()(x) ^ (std::hash<int>()(y) << 1)) >> 1) ^ (std::hash<int>()(z) << 1);
     }
 };
-
 
 class MapLoading
 {
@@ -65,8 +87,7 @@ public:
     int GetZIndex(double z) const;
 private: 
     static constexpr double resolution_ = 0.05;
-    // static constexpr float inflation_radius_cm_ = 25.0;
-    static constexpr double inflation_radius_cm_ = 0.0;
+    static constexpr float inflation_radius_cm_ = 25.0;
     std::map<double, nav_msgs::msg::OccupancyGrid> maps_;
     void InflateObstacles(nav_msgs::msg::OccupancyGrid &map, int inflation_radius_cm);
 };

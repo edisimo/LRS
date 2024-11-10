@@ -56,6 +56,9 @@ private:
     double drone_x_global_, drone_y_global_, drone_z_global_, drone_yaw_global_ = 0;
     double drone_x_local_, drone_y_local_, drone_z_local_, drone_yaw_local_ = 0;
 
+    bool received_mission_ = false;
+    drone_control::srv::CustomPath::Request::SharedPtr mission_;
+
     rclcpp::Subscription<mavros_msgs::msg::State>::SharedPtr state_sub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr local_pos_pub_;
     rclcpp::Client<mavros_msgs::srv::CommandBool>::SharedPtr arming_client_;

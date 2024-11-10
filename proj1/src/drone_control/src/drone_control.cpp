@@ -23,53 +23,29 @@ DroneControl::DroneControl() : Node("drone_control_node")
     {
         rclcpp::spin_some(this->get_node_base_interface());
         std::this_thread::sleep_for(100ms);
-    }    
-
-    TakeOff(2);
-    LandTakeoff(2);
-    // // // pathfinding bfs priklad     
-    // GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
-    // std::this_thread::sleep_for(1s);
-    // GoToPoint(0, 0, 2, 90, HARD_THRESHOLD_);
-    // std::this_thread::sleep_for(1s);
-    // GoToPoint(0, 0, 2, 180, HARD_THRESHOLD_);
-    // std::this_thread::sleep_for(1s);
-    // GoToPoint(0, 0, 2, 270, HARD_THRESHOLD_);
-    // std::this_thread::sleep_for(1s);
-    // GoToPoint(0, 0, 2, 0, HARD_THRESHOLD_);
-
-    // double x = 2;
-    // double y = -1;
-    // double yaw = 90*M_PI/180.0;
-    // std::cout << "Local x: " << x << std::endl;
-    // std::cout << "Local y: " << y << std::endl;
-    // std::cout << "Local yaw: " << yaw << std::endl;
-    // double global_x = LocalToGlobalX(y);
-    // double global_y = LocalToGlobalY(x);
-    // double global_yaw = LocalToGlobalYaw(yaw);
-    // std::cout << "Global x: " << global_x << std::endl;
-    // std::cout << "Global y: " << global_y << std::endl;
-    // std::cout << "Global yaw: " << global_yaw << std::endl;
-
-    // x = GlobalToLocalX(global_y);
-    // y = GlobalToLocalY(global_x);
-    // yaw = GlobalToLocalYaw(global_yaw);
-    // std::cout << "Local x: " << x << std::endl;
-    // std::cout << "Local y: " << y << std::endl;
-    // std::cout << "Local yaw: " << yaw << std::endl;
-
-    
-    // Land();
+    }
+    while (rclcpp::ok() && !received_mission_)
+    {
+        rclcpp::spin_some(this->get_node_base_interface());
+        std::this_thread::sleep_for(100ms);
+    }
+    // Execute the mission
+    if (received_mission_)
+    {
+        for (const auto &point : mission_->points)
+        {
+            GoToPointGlobal(point.x, point.y, point.z, point.precision, point.command);
+        }            
+    }
+          
 }
 
 void DroneControl::CustomPathCallback(const drone_control::srv::CustomPath::Request::SharedPtr request,
                                       drone_control::srv::CustomPath::Response::SharedPtr response)
 {
     RCLCPP_INFO(this->get_logger(), "Received path request");
-    for (const auto &point : request->points)
-    {
-        RCLCPP_INFO(this->get_logger(), "Point: %f, %f, %f, %s, %s", point.x, point.y, point.z, point.precision.c_str(), point.command.c_str());
-    }
+    mission_ = request;
+    received_mission_ = true;
     response->success = true;
 }
 

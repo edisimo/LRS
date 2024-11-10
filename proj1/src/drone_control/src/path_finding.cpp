@@ -3,11 +3,18 @@
 PathFinding::PathFinding() : Node("path_finding_node"), astar_(map_)
 {   
     path_client_ = this->create_client<drone_control::srv::CustomPath>("custom_path");
-    // mission_.ParsePoints("/home/lrs-ubuntu/LRS-FEI/mission_1_all.csv");
-    mission_.ParsePoints("/home/lrs-ubuntu/LRS/TEST/test_points.csv");
+    mission_.ParsePoints("/home/lrs-ubuntu/LRS-FEI/mission_1_all.csv");
+    // mission_.ParsePoints("/home/lrs-ubuntu/LRS/TEST/test_points.csv");
     mission_.DisplayPoints();
-    // map_.LoadAllMaps("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/");
-    map_.LoadAllMaps("/home/lrs-ubuntu/LRS/TEST/");
+    map_.LoadAllMaps("/home/lrs-ubuntu/LRS-FEI/maps/FEI_LRS_2D/");
+    //print all available z levels
+    auto z_levels = map_.GetAvailableZLevels();
+    for (auto i : z_levels)
+    {
+        std::cout << i << std::endl;
+    }
+
+    // map_.LoadAllMaps("/home/lrs-ubuntu/LRS/TEST/");
     // map_.PrintAllMaps();
     FindTrajectory();
     SendTrajectory();
@@ -580,15 +587,18 @@ std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, doubl
         RCLCPP_ERROR(logger, "Invalid start or goal z-level.");
         return {};
     }
+    auto z_levels = map_.GetAvailableZLevels();
 
     std::priority_queue<astar::Node, std::vector<astar::Node>, std::greater<astar::Node>> open_list;
     std::unordered_set<std::tuple<int, int, int>, HashFunc> closed_set;
     
     RCLCPP_INFO(logger, "Finding path from (%f, %f, %f) to (%f, %f, %f)", start_x, start_y, start_z, goal_x, goal_y, goal_z);
     auto start_node = std::make_shared<astar::Node>(start_x_idx, start_y_idx, start_z_idx, 0.0, 0.0, nullptr);
-    start_node->h_ = std::sqrt(std::pow(goal_x_idx - start_x_idx, 2) +
-                              std::pow(goal_y_idx - start_y_idx, 2) +
-                              std::pow(goal_z_idx - start_z_idx, 2));
+    start_node->h_ = std::sqrt(
+        std::pow((goal_x_idx - start_x_idx) * resolution, 2) +
+        std::pow((goal_y_idx - start_y_idx) * resolution, 2) +
+        std::pow(z_levels[goal_z_idx] - z_levels[start_z_idx], 2)
+    );
     start_node->f_ = start_node->g_ + start_node->h_;
     open_list.push(*start_node);
 
@@ -600,22 +610,18 @@ std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, doubl
                     directions.emplace_back(dx, dy, dz);
 
     RCLCPP_INFO(logger, "Resolution: %f", resolution);
-    auto z_levels = map_.GetAvailableZLevels();
 
     while (!open_list.empty() && rclcpp::ok()) {
         astar::Node current = open_list.top();
         open_list.pop();
+        std::cout << "Open list size " << open_list.size() << std::endl;
 
         if (current.x_ == goal_x_idx && current.y_ == goal_y_idx && current.z_ == goal_z_idx) {
             RCLCPP_INFO(logger, "Goal reached.");
             std::vector<astar::Node> path;
             std::shared_ptr<astar::Node> node = std::make_shared<astar::Node>(current);
             while (node != nullptr) {
-                double wx = node->x_ * resolution;
-                double wy = node->y_ * resolution;
-                double wz = z_levels[node->z_];
                 path.emplace_back(astar::Node{node->x_, node->y_, node->z_, node->g_, node->h_, node->parent_});
-                RCLCPP_INFO(logger, "Path node: (%f, %f, %f)", wx, wy, wz);
                 node = node->parent_;
             }
             std::reverse(path.begin(), path.end());
@@ -641,13 +647,17 @@ std::vector<astar::Node> AStar3D::FindPath(double start_x, double start_y, doubl
             int cell_value = map_.GetCellValue(wx, wy, wz);
             if (cell_value == 100 || cell_value == -1) continue; 
 
-            double movement_cost = std::sqrt(std::pow(std::get<0>(dir) * resolution, 2) +
-                                             std::pow(std::get<1>(dir) * resolution, 2) +
-                                             std::pow(z_levels[nz] - z_levels[current.z_], 2));
+            double movement_cost = std::sqrt(
+                std::pow(std::get<0>(dir) * resolution, 2) +
+                std::pow(std::get<1>(dir) * resolution, 2) +
+                std::pow(z_levels[nz] - z_levels[current.z_], 2)
+            );
             double tentative_g = current.g_ + movement_cost;
-            double h = std::sqrt(std::pow(goal_x_idx - nx, 2) +
-                                 std::pow(goal_y_idx - ny, 2) +
-                                 std::pow(goal_z_idx - nz, 2));
+            double h = std::sqrt(
+                std::pow((goal_x_idx - nx) * resolution, 2) +
+                std::pow((goal_y_idx - ny) * resolution, 2) +
+                std::pow(z_levels[goal_z_idx] - z_levels[nz], 2)
+            );
 
             auto neighbor = std::make_shared<astar::Node>(nx, ny, nz, tentative_g, h, std::make_shared<astar::Node>(current));
             open_list.push(*neighbor);
