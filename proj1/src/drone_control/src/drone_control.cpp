@@ -23,7 +23,7 @@ DroneControl::DroneControl() : Node("drone_control_node")
     {
         rclcpp::spin_some(this->get_node_base_interface());
         std::this_thread::sleep_for(100ms);
-    }
+    }    
 
     TakeOff(2);
     LandTakeoff(2);
@@ -89,6 +89,9 @@ void DroneControl::LocalPosCallback(const geometry_msgs::msg::PoseStamped::Share
     drone_y_global_ = LocalToGlobalY(drone_x_local_);
     drone_z_global_ = drone_z_local_;
     drone_yaw_global_ = LocalToGlobalYaw(drone_yaw_local_);
+
+    std::cout << "Local: " << drone_x_local_ << ", " << drone_y_local_ << ", " << drone_z_local_ << ", " << drone_yaw_local_ << std::endl;
+    std::cout << "Global: " << drone_x_global_ << ", " << drone_y_global_ << ", " << drone_z_global_ << ", " << drone_yaw_global_ << std::endl;
 }
 
 void DroneControl::StateCallback(const mavros_msgs::msg::State::SharedPtr msg)
@@ -333,7 +336,7 @@ void DroneControl::GoToPoint(float x, float y, float z, float yaw, float thresho
     pose.pose.position.x = x;
     pose.pose.position.y = y;
     pose.pose.position.z = z;
-    pose.pose.orientation = tf2::toMsg(tf2::Quaternion(tf2::Vector3(0, 0, 1), yaw*M_PI/180.0));
+    pose.pose.orientation = tf2::toMsg(tf2::Quaternion(tf2::Vector3(0, 0, 1), LocalToGlobalYaw(yaw*M_PI/180.0)));
     RCLCPP_INFO(this->get_logger(), "Going to point: %f, %f, %f, %f", x, y, z, yaw); 
 
     auto timer = this->create_wall_timer(
@@ -375,7 +378,7 @@ void DroneControl::GoToPointGlobal(float x, float y, float z, std::string precis
     else if(command == "TAKEOFF") {
         TakeOff(z, precision_threshold);
     }
-    GoToPoint(GlobalToLocalX(y), GlobalToLocalY(x), z, GlobalToLocalYaw(yaw), precision_threshold);
+    GoToPoint(GlobalToLocalX(y), GlobalToLocalY(x), z, 180.0*GlobalToLocalYaw(yaw)/M_PI, precision_threshold);
     if(command == "LAND") {
         Land();
     }
