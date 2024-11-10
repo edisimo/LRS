@@ -321,6 +321,46 @@ bool MapLoading::LoadMapPGM(const std::string &map_name, nav_msgs::msg::Occupanc
         }
     }
     InflateObstacles(map, inflation_radius_cm_);
+    SaveMapPGM(map_name + "_inflated.pgm", map);
+    return true;
+}
+
+bool MapLoading::SaveMapPGM(const std::string &map_name, const nav_msgs::msg::OccupancyGrid &map) {
+    // Open file for writing
+    std::ofstream outfile(map_name, std::ios::binary);
+    if (!outfile.is_open()) {
+        return false;
+    }
+
+    // PGM header
+    outfile << "P5\n";  // Binary format (P5)
+    outfile << "# Created by MapLoading::SaveMapPGM\n";
+    outfile << map.info.width << " " << map.info.height << "\n";
+    outfile << "255\n";  // Max value (255 for binary PGM)
+
+    // Write data in binary format
+    std::vector<uint8_t> pgm_data(map.info.width * map.info.height, 255);  // Default to 255 (free space)
+
+    for (int y = 0; y < map.info.height; ++y) {
+        for (int x = 0; x < map.info.width; ++x) {
+            size_t index = y * map.info.width + x;
+            // Map data interpretation:
+            // 100 means occupied (black in the PGM file), 
+            // 0 means free space (white in the PGM file), 
+            // -1 means unknown (255 in the PGM file).
+            if (map.data[index] == 100) {
+                pgm_data[index] = 0;  // Occupied
+            } else if (map.data[index] == 0) {
+                pgm_data[index] = 255;  // Free space
+            } else {
+                pgm_data[index] = 127;  // Unknown area (mid-grey)
+            }
+        }
+    }
+
+    // Write out the data in binary form
+    outfile.write(reinterpret_cast<char*>(pgm_data.data()), pgm_data.size());
+
     return true;
 }
 

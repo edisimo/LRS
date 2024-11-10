@@ -77,6 +77,7 @@ public:
     MapLoading();
     void LoadAllMaps(const std::string &directory_path);
     bool LoadMapPGM(const std::string &map_name, nav_msgs::msg::OccupancyGrid &map, double z_level);
+    bool SaveMapPGM(const std::string &map_name, const nav_msgs::msg::OccupancyGrid &map);
     int GetCellValue(double x, double y, double z_level);
     std::vector<double> GetAvailableZLevels() const;
     constexpr static double GetResolution() { return resolution_; }
