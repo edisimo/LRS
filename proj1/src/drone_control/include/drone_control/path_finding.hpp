@@ -44,12 +44,6 @@ namespace astar {
 
 }
 
-// struct HashFunc {
-//     size_t operator()(const std::tuple<int, int, int>& key) const {
-//         auto [x, y, z] = key;
-//         return std::hash<int>()(x) ^ std::hash<int>()(y) << 1 ^ std::hash<int>()(z) << 2;
-//     }
-// };
 
 struct HashFunc {
     std::size_t operator()(const std::tuple<int, int, int>& key) const {
@@ -80,6 +74,7 @@ public:
 private: 
     static constexpr double RESOLUTION_ = 0.05;
     static constexpr float INFLATION_RADIUS_CM_ = 30.0;
+    static constexpr float Y_OFFSET_ = 1.0;
     std::map<double, nav_msgs::msg::OccupancyGrid> maps_;
     void InflateObstacles(nav_msgs::msg::OccupancyGrid &map, int inflation_radius_cm);
 };

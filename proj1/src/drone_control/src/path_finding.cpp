@@ -277,7 +277,7 @@ bool MapLoading::LoadMapPGM(const std::string &map_name, nav_msgs::msg::Occupanc
     std::string line;
     int width, height, max_value;
     double resolution = RESOLUTION_;
-    std::vector<double> origin = {0.0, 0.0, z_level};
+    std::vector<double> origin = {0.0, -Y_OFFSET_, z_level};
 
     std::getline(infile, line);
     bool is_binary = (line == "P5");
