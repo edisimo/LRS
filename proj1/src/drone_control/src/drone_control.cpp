@@ -92,7 +92,7 @@ void DroneControl::ChangeMode(std::string mode)
         rclcpp::FutureReturnCode::SUCCESS) {
             if (result.get()->mode_sent){
                 RCLCPP_INFO(this->get_logger(), mode + " mode sent, verifying");
-                for (int retries = 0; retries < 5; ++retries){
+                for (int retries = 0; retries < MAX_RETRIES_; ++retries){
                     std::this_thread::sleep_for(500ms);
                     rclcpp::spin_some(this->get_node_base_interface());
 
@@ -140,7 +140,7 @@ void DroneControl::ArmDrone(bool arm_flag)
     }
 
     bool armed_status = false;
-    for (int retries = 0; retries < 5 && rclcpp::ok(); ++retries)
+    for (int retries = 0; retries < MAX_RETRIES_ && rclcpp::ok(); ++retries)
     {
         auto result = arming_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandBool::Request>(arm_request));
         if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result) ==
@@ -240,7 +240,6 @@ void DroneControl::TakeOff(float altitude, float threshold) {
 }
 
 void DroneControl::Land() {
-    //TODO: Check if the drone is in the air before landing
     mavros_msgs::srv::CommandTOL::Request land_request;
     land_request.yaw = drone_yaw_local_;
     while (!land_client_->wait_for_service(1s))
@@ -313,7 +312,6 @@ void DroneControl::GoToPoint(float x, float y, float z, float yaw, float thresho
     );
     std::this_thread::sleep_for(std::chrono::milliseconds(2000));
     
-    //TODO: Check the yaw
     bool is_within_threshold = false;
     bool is_yaw_within_threshold = false;
     while(rclcpp::ok() && (!is_within_threshold || !is_yaw_within_threshold)) {

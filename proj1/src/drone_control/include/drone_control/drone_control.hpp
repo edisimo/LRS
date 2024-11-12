@@ -54,6 +54,7 @@ private:
     static constexpr float GAZEBO_START_X_ = 13.6f;
     static constexpr float GAZEBO_START_Y_ = 1.5f;
     static constexpr int LAND_TAKEOFF_TIME_LIMIT_ = 20; 
+    static constexpr int MAX_RETRIES_ = 5;
 
     double drone_x_global_, drone_y_global_, drone_z_global_, drone_yaw_global_ = 0;
     double drone_x_local_, drone_y_local_, drone_z_local_, drone_yaw_local_ = 0;
