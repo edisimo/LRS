@@ -34,7 +34,7 @@ private:
     void TakeOff(float altitude, float threshold = SOFT_THRESHOLD_);
     void Land();
     void LandTakeoff(double altitude, float threshold = SOFT_THRESHOLD_);
-    void GoToPoint(float x, float y, float z, float yaw, float threshold);
+    void GoToPoint(float x, float y, float z, float yaw, float threshold, float yaw_threshold);
     void GoToPointGlobal(float x, float y, float z, std::string precision , std::string command);
     void CustomPathCallback(const drone_control::srv::CustomPath::Request::SharedPtr request,
                       drone_control::srv::CustomPath::Response::SharedPtr response);
@@ -49,6 +49,8 @@ private:
 
     static constexpr float SOFT_THRESHOLD_ = 0.1f;
     static constexpr float HARD_THRESHOLD_ = 0.05;
+    static constexpr float SOFT_YAW_THRESHOLD_ = 7.0*M_PI/180.0;
+    static constexpr float HARD_YAW_THRESHOLD_ = 5.0*M_PI/180.0;
     static constexpr float GAZEBO_START_X_ = 13.6f;
     static constexpr float GAZEBO_START_Y_ = 1.5f;
     static constexpr int LAND_TAKEOFF_TIME_LIMIT_ = 20; 

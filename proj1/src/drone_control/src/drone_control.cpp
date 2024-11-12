@@ -297,12 +297,12 @@ void DroneControl::LandTakeoff(double altitude, float threshold) {
     TakeOff(altitude, threshold);
 }
 
-void DroneControl::GoToPoint(float x, float y, float z, float yaw, float threshold) {
+void DroneControl::GoToPoint(float x, float y, float z, float yaw, float threshold, float yaw_threshold) {
     geometry_msgs::msg::PoseStamped pose;
     pose.pose.position.x = x;
     pose.pose.position.y = y;
     pose.pose.position.z = z;
-    pose.pose.orientation = tf2::toMsg(tf2::Quaternion(tf2::Vector3(0, 0, 1), LocalToGlobalYaw(yaw*M_PI/180.0)));
+    pose.pose.orientation = tf2::toMsg(tf2::Quaternion(tf2::Vector3(0, 0, 1), yaw*M_PI/180.0));
     RCLCPP_INFO(this->get_logger(), "Going to point: %f, %f, %f, %f", LocalToGlobalX(y), LocalToGlobalY(x), z, yaw*M_PI/180.0); 
 
     auto timer = this->create_wall_timer(
@@ -316,15 +316,15 @@ void DroneControl::GoToPoint(float x, float y, float z, float yaw, float thresho
     //TODO: Check the yaw
     bool is_within_threshold = false;
     bool is_yaw_within_threshold = false;
-    while(rclcpp::ok() && !is_within_threshold && !is_yaw_within_threshold) {
+    while(rclcpp::ok() && (!is_within_threshold || !is_yaw_within_threshold)) {
         rclcpp::spin_some(this->get_node_base_interface());
         float dx = x - drone_x_local_;
         float dy = y - drone_y_local_;
         float dz = z - drone_z_local_;
         float distance = std::sqrt(dx*dx + dy*dy + dz*dz);
-        float dyaw = fabs(yaw*M_PI/180.0 - drone_yaw_global_);
+        float dyaw = fabs(LocalToGlobalYaw(yaw*M_PI/180.0) - drone_yaw_global_);
         is_within_threshold = distance <= threshold;
-        is_yaw_within_threshold = dyaw <= threshold;
+        is_yaw_within_threshold = dyaw <= yaw_threshold;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
@@ -336,6 +336,7 @@ void DroneControl::GoToPointGlobal(float x, float y, float z, std::string precis
     std::transform(command.begin(), command.end(), command.begin(), ::toupper);
     std::transform(precision.begin(), precision.end(), precision.begin(), ::toupper);
     const float precision_threshold = precision == "HARD" ? HARD_THRESHOLD_ : SOFT_THRESHOLD_;
+    const float yaw_precision_threshold = precision == "HARD" ? HARD_YAW_THRESHOLD_ : SOFT_YAW_THRESHOLD_;
     double yaw = drone_yaw_global_;
     if (command.find("YAW") == 0) { 
         std::string number_part = command.substr(3); 
@@ -346,7 +347,7 @@ void DroneControl::GoToPointGlobal(float x, float y, float z, std::string precis
     else if(command == "TAKEOFF") {
         TakeOff(z, precision_threshold);
     }
-    GoToPoint(GlobalToLocalX(y), GlobalToLocalY(x), z, 180.0*GlobalToLocalYaw(yaw)/M_PI, precision_threshold);
+    GoToPoint(GlobalToLocalX(y), GlobalToLocalY(x), z, 180.0*GlobalToLocalYaw(yaw)/M_PI, precision_threshold, yaw_precision_threshold);
     RCLCPP_INFO(this->get_logger(), "Drone at point (GLOBAL): %f, %f, %f, %f", drone_x_global_, drone_y_global_, drone_z_global_, drone_yaw_global_*180.0/M_PI);
     if(command == "LAND") {
         Land();
