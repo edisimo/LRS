@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Launch Gazebo
-gnome-terminal -- bash -c "gazebo /home/lrs-ubuntu/fei_lrs_gazebo/worlds/fei_lrs_gazebo.world"
+gnome-terminal -- bash -c "gazebo /home/lrs-ubuntu/LRS-FEI/worlds/fei_lrs_gazebo.world"
 
 # Launch ArduPilot simulation
 gnome-terminal -- bash -c "cd ~/ardupilot/ArduCopter; sim_vehicle.py -f gazebo-iris --console -l 48.15084570555732,17.072729745416016,150,0"
